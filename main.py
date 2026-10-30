@@ -6,10 +6,10 @@ import re
 import random
 from datetime import datetime
 
-# Import semua modul program
 from db_manager import (
     get_semua_domain, tambah_domain, simpan_data_email, 
-    ambil_dan_hapus_email, get_semua_folder_foto, get_foto_di_folder, get_path_foto
+    ambil_dan_hapus_email, get_semua_folder_foto, get_foto_di_folder, get_path_foto,
+    DB_A2F
 )
 from fb_a2f import FBAccountsCenterA2F
 from fb_foto import FacebookProfileUploader
@@ -17,7 +17,6 @@ from fb_email import FBAccountsCenterEmail
 from fb_delete import FBAccountsCenterDelete
 from fb_trigger import FBAccountsCenterTrigger
 
-# --- STATE GLOBAL ---
 antrean_tugas = []
 daftar_stop = set()
 
@@ -36,6 +35,9 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 15 
     
+    share_service = ft.Share()
+    page.services.append(share_service)
+
     def show_msg_dialog(msg):
         page.show_dialog(ft.SnackBar(ft.Text(msg)))
 
@@ -103,7 +105,6 @@ def main(page: ft.Page):
                 }
                 antrean_tugas.append(tugas)
                 
-                # Buat UI untuk akun ini & jalankan thread-nya sendiri
                 ui_status, ui_kontainer = tambah_ke_dashboard(tugas)
                 tugas['_ui_status'] = ui_status
                 tugas['_ui_kontainer'] = ui_kontainer
@@ -220,10 +221,37 @@ def main(page: ft.Page):
     ])
 
     # ==========================================
-    # TAB 5: DASHBOARD
+    # TAB 5: DASHBOARD & SHARE DB
     # ==========================================
     dashboard_list = ft.ListView(expand=True, spacing=10)
-    tab5_content = ft.Column([ft.Text("Status Antrean", weight=ft.FontWeight.BOLD, size=18), dashboard_list])
+    
+    # Fungsi Share File Database A2F
+    async def share_db_a2f(e):
+        if os.path.exists(DB_A2F):
+            try:
+                file_to_share = ft.ShareFile.from_path(DB_A2F, name="database_a2f.csv")
+                await share_service.share_files([file_to_share], text="Berikut adalah data UID, Email, dan Kode A2F.")
+            except Exception as ex:
+                show_msg_dialog(f"❌ Gagal share: {ex}")
+        else:
+            show_msg_dialog("❌ Belum ada data A2F yang tersimpan.")
+
+    btn_share_db = ft.Button(
+        content=ft.Text("Bagikan Database A2F (CSV)"), 
+        icon=ft.Icons.SHARE, 
+        bgcolor=ft.Colors.GREEN_600, 
+        color=ft.Colors.WHITE,
+        width=float("inf"),
+        on_click=share_db_a2f
+    )
+
+    tab5_content = ft.Column([
+        ft.Text("Status Antrean", weight=ft.FontWeight.BOLD, size=18), 
+        dashboard_list,
+        ft.Divider(),
+        ft.Text("Ekspor Data", weight=ft.FontWeight.BOLD, size=16),
+        btn_share_db
+    ])
 
     # ==========================================
     # SUSUNAN TAB
@@ -309,6 +337,12 @@ def main(page: ft.Page):
         log_tb1(f"\n▶️ Memulai proses UID: {uid}")
 
         gagal_checkpoint = False
+        
+        # TARIK DATA EMAIL DARI DATABASE (Jika Ada) untuk digunakan di A2F dan EMAIL
+        data_email_db = ambil_dan_hapus_email(uid) 
+        email_target = data_email_db['email'] if data_email_db else ""
+        pin_target = data_email_db['pin'] if data_email_db else ""
+
         for prog in tugas['program']:
             if uid in daftar_stop:
                 page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan User", color=ft.Colors.GREY)
@@ -316,13 +350,13 @@ def main(page: ft.Page):
                 return
             
             try:
-                # Membuat fungsi log khusus untuk UID ini agar rapi di kotak hitam
                 def make_logger(u):
                     return lambda m: log_tb1(f"[{u}] {m}")
 
                 if prog == "A2F":
                     log_tb1(f"🔄 [{uid}] [A2F] Memproses...")
-                    app = FBAccountsCenterA2F(cookie, make_logger(uid))
+                    # Kirim email_target ke fungsi A2F
+                    app = FBAccountsCenterA2F(cookie, make_logger(uid), email_target=email_target)
                     ok, status = app.run_a2f(tugas['password'])
                     if not ok and status == "checkpoint": gagal_checkpoint = True; break
                 
@@ -341,13 +375,14 @@ def main(page: ft.Page):
                 
                 elif prog == "EMAIL":
                     log_tb1(f"🔄 [{uid}] [EMAIL] Memproses...")
-                    data_email = ambil_dan_hapus_email(uid)
-                    if not data_email:
+                    
+                    if not email_target:
                         log_tb1(f"❌ [{uid}] Data email kosong di DB!")
                         page_ref.run_task(_update_ui, ui_status, value="Status: Gagal (Email kosong)", color=ft.Colors.RED)
                         gagal_checkpoint = True; break
+                        
                     app = FBAccountsCenterEmail(cookie, make_logger(uid))
-                    ok, status = app.run_ganti_email(data_email['email'], data_email['pin'])
+                    ok, status = app.run_ganti_email(email_target, pin_target)
                     if not ok and status == "checkpoint": gagal_checkpoint = True; break
                 
                 elif prog == "DELETE":
