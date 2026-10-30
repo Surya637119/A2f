@@ -1,5 +1,5 @@
 [project]
-name = "fb-2fa-center"
+name = "fb-multitool"
 version = "1.0.0"
 requires-python = ">=3.9"
 dependencies = [
@@ -10,4 +10,5 @@ dependencies = [
 
 [tool.flet]
 org = "com.namamu"
-product = "FB2FACenter"
+product = "FBMultiTool"
+assets = ["assets"]
