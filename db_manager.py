@@ -16,18 +16,26 @@ def pastikan_file_ada(filepath, header):
             writer.writerow(header)
 
 def simpan_a2f(uid, email, kode_a2f):
+    # Format: Kolom A (UID), Kolom B (Kosong), Kolom C (Email), Kolom D (Kode A2F)
     pastikan_file_ada(DB_A2F, ["UID", "Kosong", "Email", "Kode_A2F"])
     rows = []
     if os.path.exists(DB_A2F):
         with open(DB_A2F, 'r', newline='', encoding='utf-8') as f:
             rows = list(csv.reader(f))
+            
     found = False
     for i, row in enumerate(rows):
         if i > 0 and len(row) > 0 and row[0] == str(uid):
-            rows[i] = [uid, "", email, kode_a2f]
+            # Jika email baru kosong, pertahankan email lama (jika ada)
+            email_lama = row[2] if len(row) > 2 else ""
+            email_final = email if email else email_lama
+            rows[i] = [uid, "", email_final, kode_a2f]
             found = True
             break
-    if not found: rows.append([uid, "", email, kode_a2f])
+            
+    if not found: 
+        rows.append([uid, "", email, kode_a2f])
+        
     with open(DB_A2F, 'w', newline='', encoding='utf-8') as f:
         csv.writer(f).writerows(rows)
 
@@ -43,7 +51,8 @@ def simpan_data_email(uid, email, pin):
             rows[i] = [uid, email, pin]
             found = True
             break
-    if not found: rows.append([uid, email, pin])
+    if not found: 
+        rows.append([uid, email, pin])
     with open(DB_EMAIL, 'w', newline='', encoding='utf-8') as f:
         csv.writer(f).writerows(rows)
 
@@ -74,25 +83,17 @@ def get_semua_domain():
         return [row[0] for row in rows[1:] if len(row) > 0]
 
 def get_semua_folder_foto():
-    # Cek apakah folder assets ada di dalam path utama
     path_assets = os.path.join(ASSETS_DIR, "assets")
     if not os.path.exists(path_assets):
-        # Fallback jika Flet mengekstraknya langsung ke root ASSETS_DIR
         path_assets = ASSETS_DIR
-        
     if not os.path.exists(path_assets): return []
-    
-    # Kembalikan list nama folder (misal: foto_laki, foto_perempuan)
     return [d for d in os.listdir(path_assets) if os.path.isdir(os.path.join(path_assets, d))]
 
 def get_foto_di_folder(nama_folder):
     path = os.path.join(ASSETS_DIR, "assets", nama_folder)
     if not os.path.exists(path):
         path = os.path.join(ASSETS_DIR, nama_folder)
-        
     if not os.path.exists(path): return []
-    
-    # Kembalikan list nama file foto (jpg, jpeg, png)
     return [f for f in os.listdir(path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
 
 def get_path_foto(nama_folder, nama_file):
@@ -100,3 +101,7 @@ def get_path_foto(nama_folder, nama_file):
     if not os.path.exists(path):
         path = os.path.join(ASSETS_DIR, nama_folder, nama_file)
     return path
+
+# Fungsi bantu untuk Share Database
+def get_path_db_a2f():
+    return DB_A2F
