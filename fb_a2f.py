@@ -7,12 +7,13 @@ import pyotp
 from db_manager import simpan_a2f
 
 class FBAccountsCenterA2F:
-    def __init__(self, cookie_string, log_callback):
+    def __init__(self, cookie_string, log_callback, email_target=""):
         self.session = requests.Session()
         self.base_url = "https://accountscenter.facebook.com"
         self.log = log_callback
         self.user_id = None
         self.password = None
+        self.email = email_target  # <-- Menerima email dari main.py
         self.last_totp_key = None
         self.fb_dtsg = None
         self.tokens = {}
@@ -187,7 +188,8 @@ class FBAccountsCenterA2F:
         if json_resp and 'data' in json_resp:
             if json_resp['data'].get('xfb_two_factor_enable_totp', {}).get('success'):
                 self.log(f"✅ 2FA Berhasil diaktifkan! Key: {self.last_totp_key}")
-                simpan_a2f(self.user_id, "", self.last_totp_key) # Simpan ke CSV
+                # Simpan email yang didapat dari main.py
+                simpan_a2f(self.user_id, self.email, self.last_totp_key)
                 return True, "sukses"
                 
         self.log("❌ Gagal mengaktifkan 2FA (kode salah).")
