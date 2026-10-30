@@ -35,7 +35,7 @@ def buat_kotak_log(height=180):
 def main(page: ft.Page):
     page.title = "FB MultiTool Pro"
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.padding = 15 # Padding normal
+    page.padding = 15 
     
     def show_msg_dialog(msg):
         page.show_dialog(ft.SnackBar(ft.Text(msg)))
@@ -46,7 +46,6 @@ def main(page: ft.Page):
     tb1_cookie = ft.TextField(label="Cookie", multiline=True, min_lines=2, max_lines=4, text_size=12)
     tb1_password = ft.TextField(label="Password FB", password=True, can_reveal_password=True)
     tb1_timer = ft.TextField(label="Timer Mulai (Menit)", value="0", keyboard_type=ft.KeyboardType.NUMBER)
-    # Perbaikan Layout: Jeda ditumpuk ke bawah
     tb1_delay_akun = ft.TextField(label="Jeda Antar Akun (Detik)", value="5", keyboard_type=ft.KeyboardType.NUMBER)
     tb1_delay_prog = ft.TextField(label="Jeda Antar Program (Detik)", value="3", keyboard_type=ft.KeyboardType.NUMBER)
 
@@ -145,21 +144,18 @@ def main(page: ft.Page):
         
         def worker():
             try:
-                log_tb2(f"👤 Menyiapkan akun...")
                 app = FBAccountsCenterTrigger(tb2_cookie.value, log_tb2)
-                
-                log_tb2(f"🚀 Mengirim trigger ke {tb2_email.value}...")
                 ok, status = app.run_trigger(tb2_email.value)
                 
                 if ok:
                     log_tb2("✅ Trigger berhasil dikirim!")
-                    page.run_task(show_msg_dialog, "✅ Trigger sukses! Cek email.")
+                    page.run_task(lambda: page.show_dialog(ft.SnackBar(ft.Text("✅ Trigger sukses! Cek email."))))
                 else:
                     log_tb2(f"❌ Trigger gagal: {status}")
-                    page.run_task(show_msg_dialog, f"❌ Gagal: {status}")
+                    page.run_task(lambda: page.show_dialog(ft.SnackBar(ft.Text(f"❌ Gagal: {status}"))))
             except Exception as ex:
                 log_tb2(f"❌ ERROR FATAL: {str(ex)}")
-                page.run_task(show_msg_dialog, "❌ Terjadi error sistem, cek log.")
+                page.run_task(lambda: page.show_dialog(ft.SnackBar(ft.Text(f"❌ Error: {ex}"))))
         threading.Thread(target=worker, daemon=True).start()
 
     tab2_content = ft.Column([
@@ -225,7 +221,7 @@ def main(page: ft.Page):
     tab5_content = ft.Column([ft.Text("Status Antrean", weight=ft.FontWeight.BOLD, size=18), dashboard_list])
 
     # ==========================================
-    # SUSUNAN TAB (5 Tab)
+    # SUSUNAN TAB
     # ==========================================
     tabs = ft.Tabs(
         selected_index=0,
@@ -326,13 +322,9 @@ def main(page: ft.Page):
                     
                     elif prog == "FOTO":
                         folder = tugas_aktif['folder_foto']
-                        if not folder: 
-                            log_tb1(f"⚠️ Skip FOTO: Folder belum dipilih.")
-                            continue
+                        if not folder: continue
                         fotos = get_foto_di_folder(folder)
-                        if not fotos: 
-                            log_tb1(f"⚠️ Skip FOTO: Folder '{folder}' kosong.")
-                            continue
+                        if not fotos: continue
                         nama_foto = random.choice(fotos)
                         path_foto = get_path_foto(folder, nama_foto)
                         
@@ -346,7 +338,7 @@ def main(page: ft.Page):
                         data_email = ambil_dan_hapus_email(uid)
                         if not data_email:
                             log_tb1("❌ Data email kosong di DB!")
-                            page_ref.run_task(_update_ui, ui_status, value="Status: Gagal (Data email kosong)", color=ft.Colors.RED)
+                            page_ref.run_task(_update_ui, ui_status, value="Status: Gagal (Email kosong)", color=ft.Colors.RED)
                             gagal_checkpoint = True; break
                         app = FBAccountsCenterEmail(cookie, log_tb1)
                         ok, status = app.run_ganti_email(data_email['email'], data_email['pin'])
@@ -354,9 +346,7 @@ def main(page: ft.Page):
                     
                     elif prog == "DELETE":
                         domain = tugas_aktif['domain']
-                        if not domain: 
-                            log_tb1(f"⚠️ Skip DELETE: Domain belum dipilih.")
-                            continue
+                        if not domain: continue
                         log_tb1(f"🔄 [DELETE] Memproses...")
                         app = FBAccountsCenterDelete(cookie, log_tb1)
                         ok, status = app.run_delete(domain)
