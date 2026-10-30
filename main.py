@@ -125,7 +125,7 @@ def main(page: ft.Page):
         tb1_cb_a2f, tb1_cb_foto, tb1_cb_email, tb1_cb_delete,
         tb1_dd_folder, tb1_dd_domain,
         ft.Divider(),
-        # FIX: ft.Button menggunakan content, bukan text
+        # Flet 1.0: ft.Button pakai content
         ft.Button(content=ft.Text("Masukkan ke Antrean"), icon=ft.Icons.PLAY_ARROW, bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE, on_click=mulai_antrean)
     ], scroll=ft.ScrollMode.AUTO)
 
@@ -200,20 +200,38 @@ def main(page: ft.Page):
     tab6_content = tampilkan_menu_upload(page, file_picker)
 
     # ==========================================
-    # SUSUNAN TAB (FIX: ft.Tab menggunakan label)
+    # SUSUNAN TAB (FIX TOTAL UNTUK FLET 1.0.5)
     # ==========================================
     tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
-        tabs=[
-            ft.Tab(label="Auto Set", content=tab1_content),
-            ft.Tab(label="Trigger", content=tab2_content),
-            ft.Tab(label="Set Email", content=tab3_content),
-            ft.Tab(label="Set Domain", content=tab4_content),
-            ft.Tab(label="Dashboard", content=tab5_content),
-            ft.Tab(label="Upload Foto", content=tab6_content),
-        ],
         expand=1,
+        content=ft.Column(
+            expand=True,
+            controls=[
+                ft.TabBar(
+                    tabs=[
+                        ft.Tab(label="Auto Set"),
+                        ft.Tab(label="Trigger"),
+                        ft.Tab(label="Set Email"),
+                        ft.Tab(label="Set Domain"),
+                        ft.Tab(label="Dashboard"),
+                        ft.Tab(label="Upload Foto"),
+                    ]
+                ),
+                ft.TabBarView(
+                    expand=True,
+                    controls=[
+                        tab1_content,
+                        tab2_content,
+                        tab3_content,
+                        tab4_content,
+                        tab5_content,
+                        tab6_content,
+                    ]
+                )
+            ]
+        )
     )
     page.add(tabs)
 
@@ -248,7 +266,8 @@ def main(page: ft.Page):
                 ]),
                 teks_status
             ]),
-            padding=10, border=ft.border.all(1, ft.Colors.GREY), border_radius=8
+            # Flet 1.0: ft.Border kapital
+            padding=10, border=ft.Border.all(1, ft.Colors.GREY), border_radius=8
         )
         
         tugas['_ui_kontainer'] = kontainer_item
@@ -271,9 +290,10 @@ def main(page: ft.Page):
             
             if uid in daftar_stop:
                 tugas_aktif['status'] = 'Stopped'
-                ui_status.value = "Status: Dihentikan User"
-                ui_status.color = ft.Colors.GREY
-                page_ref.update()
+                # Flet 1.0: Amankan update UI dari thread lain
+                page_ref.run_thread(ui_status.setattr, "value", "Status: Dihentikan User")
+                page_ref.run_thread(ui_status.setattr, "color", ft.Colors.GREY)
+                page_ref.run_thread(page_ref.update)
                 continue
 
             def log_ui(msg):
@@ -282,22 +302,22 @@ def main(page: ft.Page):
             waktu_sekarang = time.time()
             if waktu_sekarang < tugas_aktif['waktu_mulai']:
                 selisih = int(tugas_aktif['waktu_mulai'] - waktu_sekarang)
-                ui_status.value = f"Status: Waiting ({selisih} detik lagi)"
-                page_ref.update()
+                page_ref.run_thread(ui_status.setattr, "value", f"Status: Waiting ({selisih} detik lagi)")
+                page_ref.run_thread(page_ref.update)
                 time.sleep(1)
                 continue
 
-            ui_status.value = "Status: Processing..."
-            ui_status.color = ft.Colors.BLUE
-            page_ref.update()
+            page_ref.run_thread(ui_status.setattr, "value", "Status: Processing...")
+            page_ref.run_thread(ui_status.setattr, "color", ft.Colors.BLUE)
+            page_ref.run_thread(page_ref.update)
 
             gagal_checkpoint = False
             
             for prog in tugas_aktif['program']:
                 if uid in daftar_stop:
-                    ui_status.value = "Status: Dihentikan User"
-                    ui_status.color = ft.Colors.GREY
-                    page_ref.update()
+                    page_ref.run_thread(ui_status.setattr, "value", "Status: Dihentikan User")
+                    page_ref.run_thread(ui_status.setattr, "color", ft.Colors.GREY)
+                    page_ref.run_thread(page_ref.update)
                     break
                 
                 try:
@@ -321,8 +341,8 @@ def main(page: ft.Page):
                     elif prog == "EMAIL":
                         data_email = ambil_dan_hapus_email(uid)
                         if not data_email:
-                            ui_status.value = "Status: Gagal (Data email kosong)"
-                            ui_status.color = ft.Colors.RED
+                            page_ref.run_thread(ui_status.setattr, "value", "Status: Gagal (Data email kosong)")
+                            page_ref.run_thread(ui_status.setattr, "color", ft.Colors.RED)
                             gagal_checkpoint = True; break
                             
                         app = FBAccountsCenterEmail(cookie, log_ui)
@@ -347,18 +367,18 @@ def main(page: ft.Page):
 
             if gagal_checkpoint:
                 tugas_aktif['status'] = 'Gagal'
-                ui_status.value = "Status: Gagal / Checkpoint"
-                ui_status.color = ft.Colors.RED
+                page_ref.run_thread(ui_status.setattr, "value", "Status: Gagal / Checkpoint")
+                page_ref.run_thread(ui_status.setattr, "color", ft.Colors.RED)
             elif uid in daftar_stop:
                 tugas_aktif['status'] = 'Stopped'
-                ui_status.value = "Status: Dihentikan User"
-                ui_status.color = ft.Colors.GREY
+                page_ref.run_thread(ui_status.setattr, "value", "Status: Dihentikan User")
+                page_ref.run_thread(ui_status.setattr, "color", ft.Colors.GREY)
             else:
                 tugas_aktif['status'] = 'Sukses'
-                ui_status.value = "Status: Sukses ✅"
-                ui_status.color = ft.Colors.GREEN
+                page_ref.run_thread(ui_status.setattr, "value", "Status: Sukses ✅")
+                page_ref.run_thread(ui_status.setattr, "color", ft.Colors.GREEN)
                 
-            page_ref.update()
+            page_ref.run_thread(page_ref.update)
             
             if uid not in daftar_stop:
                 time.sleep(tugas_aktif['delay_akun'])
