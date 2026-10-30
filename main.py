@@ -15,6 +15,7 @@ from fb_a2f import FBAccountsCenterA2F
 from fb_foto import FacebookProfileUploader
 from fb_email import FBAccountsCenterEmail
 from fb_delete import FBAccountsCenterDelete
+from fb_trigger import FBAccountsCenterTrigger # <-- IMPORT TRIGGER DI SINI
 
 # --- STATE GLOBAL UNTUK ANTREAN ---
 antrean_tugas = []
@@ -35,6 +36,10 @@ def main(page: ft.Page):
     # Inisialisasi Service Android
     file_picker = ft.FilePicker()
     page.services.append(file_picker)
+
+    # Fungsi bantuan untuk menampilkan dialog dari thread luar
+    def show_msg_dialog(msg):
+        page.show_dialog(ft.SnackBar(ft.Text(msg)))
 
     # ==========================================
     # TAB 1: AUTO SET PROFILE
@@ -71,7 +76,7 @@ def main(page: ft.Page):
         pass_val = tb1_password.value
         
         if not cookies or not cookies[0]:
-            page.show_dialog(ft.SnackBar(ft.Text("❌ Cookie kosong!")))
+            show_msg_dialog("❌ Cookie kosong!")
             return
             
         program_dipilih = []
@@ -81,7 +86,7 @@ def main(page: ft.Page):
         if tb1_cb_delete.value: program_dipilih.append("DELETE")
         
         if not program_dipilih:
-            page.show_dialog(ft.SnackBar(ft.Text("❌ Pilih minimal 1 program!")))
+            show_msg_dialog("❌ Pilih minimal 1 program!")
             return
 
         try:
@@ -107,7 +112,7 @@ def main(page: ft.Page):
                 antrean_tugas.append(tugas)
                 tambah_ke_dashboard(tugas)
         
-        page.show_dialog(ft.SnackBar(ft.Text(f"✅ {len(cookies)} akun masuk antrean!")))
+        show_msg_dialog(f"✅ {len(cookies)} akun masuk antrean!")
         tb1_cookie.value = ""
         page.update()
         
@@ -128,9 +133,39 @@ def main(page: ft.Page):
     ], scroll=ft.ScrollMode.AUTO)
 
     # ==========================================
-    # TAB 2: TRIGGER EMAIL
+    # TAB 2: TRIGGER EMAIL (SUDAH DIIMPLEMENTASIKAN)
     # ==========================================
-    tab2_content = ft.Column([ft.Text("Fitur Trigger Email Belum Diimplementasikan", color=ft.Colors.GREY)])
+    tb2_cookie = ft.TextField(label="Cookie", multiline=True, min_lines=2, max_lines=4, text_size=12)
+    tb2_email = ft.TextField(label="Email Target (Yang mau di-trigger)")
+    
+    def mulai_trigger(e):
+        if not tb2_cookie.value or not tb2_email.value:
+            show_msg_dialog("❌ Cookie dan Email wajib diisi!")
+            return
+            
+        def worker():
+            def log_ui(msg): 
+                print(f"[TRIGGER] {msg}")
+                
+            try:
+                app = FBAccountsCenterTrigger(tb2_cookie.value, log_ui)
+                ok, status = app.run_trigger(tb2_email.value)
+                if ok:
+                    page.run_task(show_msg_dialog, "✅ Trigger sukses! Cek email.")
+                else:
+                    page.run_task(show_msg_dialog, f"❌ Gagal: {status}")
+            except Exception as ex:
+                log_ui(str(ex))
+                page.run_task(show_msg_dialog, f"❌ Error: {ex}")
+                
+        threading.Thread(target=worker, daemon=True).start()
+
+    tab2_content = ft.Column([
+        ft.Text("Trigger Email Konfirmasi", weight=ft.FontWeight.BOLD),
+        tb2_cookie, tb2_email,
+        ft.Divider(),
+        ft.Button(content=ft.Text("Mulai Trigger"), icon=ft.Icons.SEND, bgcolor=ft.Colors.ORANGE_600, color=ft.Colors.WHITE, on_click=mulai_trigger)
+    ], scroll=ft.ScrollMode.AUTO)
 
     # ==========================================
     # TAB 3: SET DATA EMAIL
@@ -141,10 +176,10 @@ def main(page: ft.Page):
 
     def simpan_email_klik(e):
         if not tb3_uid.value or not tb3_email.value or not tb3_pin.value:
-            page.show_dialog(ft.SnackBar(ft.Text("❌ Semua kolom wajib diisi!")))
+            show_msg_dialog("❌ Semua kolom wajib diisi!")
             return
         simpan_data_email(tb3_uid.value, tb3_email.value, tb3_pin.value)
-        page.show_dialog(ft.SnackBar(ft.Text("✅ Data email berhasil disimpan!")))
+        show_msg_dialog("✅ Data email berhasil disimpan!")
         tb3_uid.value = tb3_email.value = tb3_pin.value = ""
         page.update()
 
@@ -247,7 +282,7 @@ def main(page: ft.Page):
                 teks_status
             ]),
             padding=10, 
-            border=ft.Border.all(1, ft.Colors.GREY), # <-- FIX: ft.Border.all (B kapital)
+            border=ft.Border.all(1, ft.Colors.GREY), 
             border_radius=8
         )
         tugas['_ui_kontainer'] = kontainer_item
