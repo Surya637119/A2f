@@ -2,8 +2,8 @@ import csv
 import os
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
-# Flet mengekstrak folder assets ke direktori ini:
-ASSETS_DIR = os.getenv("FLET_ASSETS_DIR", "")
+# Mengambil path assets, jika kosong (None), fallback ke APP_DIR
+ASSETS_DIR = os.getenv("FLET_ASSETS_DIR") or os.path.join(APP_DIR, "assets")
 
 DB_A2F = os.path.join(APP_DIR, "database_a2f.csv")
 DB_EMAIL = os.path.join(APP_DIR, "database_email.csv")
@@ -74,18 +74,29 @@ def get_semua_domain():
         return [row[0] for row in rows[1:] if len(row) > 0]
 
 def get_semua_folder_foto():
-    # Membaca folder dari dalam ASSETS (GitHub)
-    if not ASSETS_DIR: return []
+    # Cek apakah folder assets ada di dalam path utama
     path_assets = os.path.join(ASSETS_DIR, "assets")
+    if not os.path.exists(path_assets):
+        # Fallback jika Flet mengekstraknya langsung ke root ASSETS_DIR
+        path_assets = ASSETS_DIR
+        
     if not os.path.exists(path_assets): return []
+    
+    # Kembalikan list nama folder (misal: foto_laki, foto_perempuan)
     return [d for d in os.listdir(path_assets) if os.path.isdir(os.path.join(path_assets, d))]
 
 def get_foto_di_folder(nama_folder):
-    if not ASSETS_DIR: return []
     path = os.path.join(ASSETS_DIR, "assets", nama_folder)
+    if not os.path.exists(path):
+        path = os.path.join(ASSETS_DIR, nama_folder)
+        
     if not os.path.exists(path): return []
+    
+    # Kembalikan list nama file foto (jpg, jpeg, png)
     return [f for f in os.listdir(path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
 
 def get_path_foto(nama_folder, nama_file):
-    if not ASSETS_DIR: return ""
-    return os.path.join(ASSETS_DIR, "assets", nama_folder, nama_file)
+    path = os.path.join(ASSETS_DIR, "assets", nama_folder, nama_file)
+    if not os.path.exists(path):
+        path = os.path.join(ASSETS_DIR, nama_folder, nama_file)
+    return path
