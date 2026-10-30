@@ -44,6 +44,7 @@ def main(page: ft.Page):
     # ==========================================
     # TAB 1: AUTO SET PROFILE
     # ==========================================
+    # ... (Bagian UI form Input, Checkbox, Dropdown sama seperti sebelumnya) ...
     tb1_cookie = ft.TextField(label="Cookie", multiline=True, min_lines=2, max_lines=4, text_size=12)
     tb1_password = ft.TextField(label="Password FB", password=True, can_reveal_password=True)
     tb1_timer = ft.TextField(label="Timer Mulai (Menit)", value="0", keyboard_type=ft.KeyboardType.NUMBER)
@@ -61,7 +62,10 @@ def main(page: ft.Page):
 
     def log_tb1(msg):
         tb1_log_ctn.visible = True
-        tb1_log_lv.controls.append(ft.Text(str(msg), color=ft.Colors.WHITE, size=12, font_family="monospace"))
+        # KUNCI UTAMA: selectable=True agar bisa di-klik lama (copy)
+        tb1_log_lv.controls.append(
+            ft.Text(str(msg), color=ft.Colors.WHITE, size=12, font_family="monospace", selectable=True)
+        )
         page.update()
 
     def on_cek_program(e):
@@ -104,11 +108,9 @@ def main(page: ft.Page):
                     "delay_akun": d_akun, "delay_prog": d_prog, "status": "Waiting"
                 }
                 antrean_tugas.append(tugas)
-                
                 ui_status, ui_kontainer = tambah_ke_dashboard(tugas)
                 tugas['_ui_status'] = ui_status
                 tugas['_ui_kontainer'] = ui_kontainer
-                
                 threading.Thread(target=jalankan_tugas, args=(tugas, page), daemon=True).start()
                 count += 1
         
@@ -130,8 +132,10 @@ def main(page: ft.Page):
         tb1_log_ctn
     ], scroll=ft.ScrollMode.AUTO)
 
+    # ... (Tab 2, 3, 4 sama seperti sebelumnya, pastikan log-nya pakai selectable=True) ...
+
     # ==========================================
-    # TAB 2: TRIGGER EMAIL
+    # TAB 2: TRIGGER EMAIL (Update Log)
     # ==========================================
     tb2_cookie = ft.TextField(label="Cookie", multiline=True, min_lines=2, max_lines=4, text_size=12)
     tb2_email = ft.TextField(label="Email Target (Yang mau di-trigger)")
@@ -139,7 +143,7 @@ def main(page: ft.Page):
 
     def log_tb2(msg):
         tb2_log_ctn.visible = True
-        tb2_log_lv.controls.append(ft.Text(str(msg), color=ft.Colors.WHITE, size=12, font_family="monospace"))
+        tb2_log_lv.controls.append(ft.Text(str(msg), color=ft.Colors.WHITE, size=12, font_family="monospace", selectable=True))
         page.update()
 
     def mulai_trigger(e):
@@ -175,7 +179,7 @@ def main(page: ft.Page):
     ], scroll=ft.ScrollMode.AUTO)
 
     # ==========================================
-    # TAB 3: SET DATA EMAIL
+    # TAB 3, 4, 5 (Sama seperti versi sebelumnya)
     # ==========================================
     tb3_uid = ft.TextField(label="UID")
     tb3_email = ft.TextField(label="Email")
@@ -195,9 +199,6 @@ def main(page: ft.Page):
         ft.Button(content=ft.Text("Simpan ke Database"), on_click=simpan_email_klik, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE)
     ])
 
-    # ==========================================
-    # TAB 4: SET DOMAIN
-    # ==========================================
     tb4_domain = ft.TextField(label="Domain (Cth: outlook.com)")
     list_domain_view = ft.ListView(expand=True, spacing=5)
 
@@ -220,29 +221,21 @@ def main(page: ft.Page):
         list_domain_view
     ])
 
-    # ==========================================
-    # TAB 5: DASHBOARD & SHARE DB
-    # ==========================================
     dashboard_list = ft.ListView(expand=True, spacing=10)
     
-    # Fungsi Share File Database A2F
     async def share_db_a2f(e):
         if os.path.exists(DB_A2F):
             try:
                 file_to_share = ft.ShareFile.from_path(DB_A2F, name="database_a2f.csv")
-                await share_service.share_files([file_to_share], text="Berikut adalah data UID, Email, dan Kode A2F.")
+                await share_service.share_files([file_to_share], text="Data UID, Email, dan Kode A2F.")
             except Exception as ex:
                 show_msg_dialog(f"❌ Gagal share: {ex}")
         else:
             show_msg_dialog("❌ Belum ada data A2F yang tersimpan.")
 
     btn_share_db = ft.Button(
-        content=ft.Text("Bagikan Database A2F (CSV)"), 
-        icon=ft.Icons.SHARE, 
-        bgcolor=ft.Colors.GREEN_600, 
-        color=ft.Colors.WHITE,
-        width=float("inf"),
-        on_click=share_db_a2f
+        content=ft.Text("Bagikan Database A2F (CSV)"), icon=ft.Icons.SHARE, 
+        bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE, width=float("inf"), on_click=share_db_a2f
     )
 
     tab5_content = ft.Column([
@@ -257,10 +250,7 @@ def main(page: ft.Page):
     # SUSUNAN TAB
     # ==========================================
     tabs = ft.Tabs(
-        selected_index=0,
-        length=5,
-        animation_duration=300,
-        expand=1,
+        selected_index=0, length=5, animation_duration=300, expand=1,
         content=ft.Column(
             expand=True,
             controls=[
@@ -281,7 +271,7 @@ def main(page: ft.Page):
     page.add(tabs)
 
     # ==========================================
-    # LOGIKA DASHBOARD
+    # LOGIKA DASHBOARD & WORKER
     # ==========================================
     def tambah_ke_dashboard(tugas):
         uid = tugas['uid']
@@ -314,31 +304,23 @@ def main(page: ft.Page):
         page.update()
         return teks_status, kontainer_item
 
-    # ==========================================
-    # LOGIKA EKSEKUSI TIAP AKUN (MULTI-THREAD)
-    # ==========================================
     def jalankan_tugas(tugas, page_ref):
         uid, cookie = tugas['uid'], tugas['cookie']
         ui_status = tugas['_ui_status']
         
-        # 1. Proses Timer
         while time.time() < tugas['waktu_mulai']:
             if uid in daftar_stop:
                 tugas['status'] = 'Stopped'
                 page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan User", color=ft.Colors.GREY)
                 return
-            
             selisih = int(tugas['waktu_mulai'] - time.time())
             page_ref.run_task(_update_ui, ui_status, value=f"Status: Waiting ({selisih} detik lagi)", color=ft.Colors.ORANGE)
             time.sleep(1)
         
-        # 2. Mulai Eksekusi Program
         page_ref.run_task(_update_ui, ui_status, value="Status: Processing...", color=ft.Colors.BLUE)
         log_tb1(f"\n▶️ Memulai proses UID: {uid}")
 
         gagal_checkpoint = False
-        
-        # TARIK DATA EMAIL DARI DATABASE (Jika Ada) untuk digunakan di A2F dan EMAIL
         data_email_db = ambil_dan_hapus_email(uid) 
         email_target = data_email_db['email'] if data_email_db else ""
         pin_target = data_email_db['pin'] if data_email_db else ""
@@ -355,7 +337,6 @@ def main(page: ft.Page):
 
                 if prog == "A2F":
                     log_tb1(f"🔄 [{uid}] [A2F] Memproses...")
-                    # Kirim email_target ke fungsi A2F
                     app = FBAccountsCenterA2F(cookie, make_logger(uid), email_target=email_target)
                     ok, status = app.run_a2f(tugas['password'])
                     if not ok and status == "checkpoint": gagal_checkpoint = True; break
@@ -375,12 +356,10 @@ def main(page: ft.Page):
                 
                 elif prog == "EMAIL":
                     log_tb1(f"🔄 [{uid}] [EMAIL] Memproses...")
-                    
                     if not email_target:
                         log_tb1(f"❌ [{uid}] Data email kosong di DB!")
                         page_ref.run_task(_update_ui, ui_status, value="Status: Gagal (Email kosong)", color=ft.Colors.RED)
                         gagal_checkpoint = True; break
-                        
                     app = FBAccountsCenterEmail(cookie, make_logger(uid))
                     ok, status = app.run_ganti_email(email_target, pin_target)
                     if not ok and status == "checkpoint": gagal_checkpoint = True; break
@@ -400,17 +379,5 @@ def main(page: ft.Page):
             
             time.sleep(tugas['delay_prog'])
 
-        # 3. Update Status Akhir
         if gagal_checkpoint:
-            tugas['status'] = 'Gagal'
-            page_ref.run_task(_update_ui, ui_status, value="Status: Gagal / Checkpoint", color=ft.Colors.RED)
-            log_tb1(f"⛔ Proses UID {uid} dihentikan (Checkpoint).")
-        elif uid not in daftar_stop:
-            tugas['status'] = 'Sukses'
-            page_ref.run_task(_update_ui, ui_status, value="Status: Sukses ✅", color=ft.Colors.GREEN)
-            log_tb1(f"✅ Proses UID {uid} Selesai.")
-        
-        daftar_stop.discard(uid)
-
-if __name__ == "__main__":
-    ft.run(main)
+            tugas['status'] = '
