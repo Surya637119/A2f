@@ -14,11 +14,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: 'pip' # 1. Cache Pip (Flet CLI)
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+          cache: 'gradle' # 2. Cache Gradle (Untuk kompilasi Android)
+
+      # 3. Cache Flutter SDK & Flet Build Directory
+      - name: Cache Flet & Flutter
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.flet
+            ~/.pub-cache
+          key: ${{ runner.os }}-flet-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-flet-
 
       - name: Install Flet
         run: pip install flet==1.0.5
