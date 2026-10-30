@@ -38,7 +38,7 @@ def tampilkan_menu_upload(page: ft.Page, file_picker: ft.FilePicker):
                         ])
                     ]),
                     padding=10, 
-                    border=ft.Border.all(1, ft.Colors.GREY_400), # <-- FIX: ft.Border.all (B kapital)
+                    border=ft.Border.all(1, ft.Colors.GREY_400), 
                     border_radius=10
                 )
             )
@@ -48,9 +48,21 @@ def tampilkan_menu_upload(page: ft.Page, file_picker: ft.FilePicker):
         if e.files and folder_target_upload["nama"]:
             target_dir = os.path.join(FOTO_DIR, folder_target_upload["nama"])
             count = 0
+            
             for f in e.files:
-                shutil.copy(f.path, os.path.join(target_dir, f.name))
-                count += 1
+                try:
+                    # FIX TOTAL: Gunakan fungsi baca Flet (bukan open() Python biasa)
+                    # Ini dijamin tembus izin sandbox Android
+                    file_bytes = f.read()
+                    
+                    if file_bytes:
+                        dest_path = os.path.join(target_dir, f.name)
+                        with open(dest_path, 'wb') as dst_file:
+                            dst_file.write(file_bytes)
+                        count += 1
+                except Exception as ex:
+                    print(f"Gagal copy {f.name}: {ex}")
+                    
             folder_target_upload["nama"] = None
             refresh_daftar()
             page.show_dialog(ft.SnackBar(ft.Text(f"✅ {count} foto berhasil diupload!")))
