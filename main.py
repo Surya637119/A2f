@@ -2,7 +2,7 @@ import flet as ft
 import threading
 import time
 import os
-import json
+import re
 from datetime import datetime
 
 # Import semua modul program
@@ -17,8 +17,8 @@ from fb_email import FBAccountsCenterEmail
 from fb_delete import FBAccountsCenterDelete
 
 # --- STATE GLOBAL UNTUK ANTREAN ---
-antrean_tugas = [] # Menyimpan dict tugas
-daftar_stop = set() # Menyimpan UID yang di-request stop
+antrean_tugas = []
+daftar_stop = set()
 worker_aktif = False
 
 def main(page: ft.Page):
@@ -29,10 +29,6 @@ def main(page: ft.Page):
     # Inisialisasi Service Android
     file_picker = ft.FilePicker()
     page.services.append(file_picker)
-
-    # --- UI KOMPONEN DASAR ---
-    def buat_tab(title, content):
-        return ft.Tab(text=title, content=ft.Container(content=content, padding=15))
 
     # ==========================================
     # TAB 1: AUTO SET PROFILE
@@ -65,7 +61,7 @@ def main(page: ft.Page):
     tb1_cb_delete.on_change = on_cek_program
 
     def mulai_antrean(e):
-        cookies = tb1_cookie.value.strip().split('\n') # Bisa multiple cookie pisah enter
+        cookies = tb1_cookie.value.strip().split('\n')
         pass_val = tb1_password.value
         
         if not cookies or not cookies[0]:
@@ -91,11 +87,8 @@ def main(page: ft.Page):
 
         waktu_mulai = time.time() + (menit * 60)
 
-        # Masukkan ke antrean
         for c in cookies:
             if c.strip():
-                # Ekstrak UID dari cookie
-                import re
                 uid_match = re.search(r'c_user=(\d+)', c)
                 uid = uid_match.group(1) if uid_match else "Unknown"
                 
@@ -115,7 +108,7 @@ def main(page: ft.Page):
                 tambah_ke_dashboard(tugas)
         
         page.show_snack_bar(ft.SnackBar(ft.Text(f"✅ {len(cookies)} akun masuk antrean!")))
-        tb1_cookie.value = "" # Clear
+        tb1_cookie.value = ""
         page.update()
         
         global worker_aktif
@@ -132,7 +125,8 @@ def main(page: ft.Page):
         tb1_cb_a2f, tb1_cb_foto, tb1_cb_email, tb1_cb_delete,
         tb1_dd_folder, tb1_dd_domain,
         ft.Divider(),
-        ft.Button("Masukkan ke Antrean", icon=ft.Icons.PLAY_ARROW, bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE, on_click=mulai_antrean)
+        # FIX: ft.Button menggunakan content, bukan text
+        ft.Button(content=ft.Text("Masukkan ke Antrean"), icon=ft.Icons.PLAY_ARROW, bgcolor=ft.Colors.BLUE_600, color=ft.Colors.WHITE, on_click=mulai_antrean)
     ], scroll=ft.ScrollMode.AUTO)
 
     # ==========================================
@@ -161,7 +155,7 @@ def main(page: ft.Page):
     tab3_content = ft.Column([
         ft.Text("Masukkan Data Email & PIN", weight=ft.FontWeight.BOLD),
         tb3_uid, tb3_email, tb3_pin,
-        ft.Button("Simpan ke Database", on_click=simpan_email_klik, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE)
+        ft.Button(content=ft.Text("Simpan ke Database"), on_click=simpan_email_klik, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE)
     ])
 
     # ==========================================
@@ -185,13 +179,13 @@ def main(page: ft.Page):
     refresh_domain()
     tab4_content = ft.Column([
         ft.Text("Tambah Domain Target", weight=ft.FontWeight.BOLD),
-        ft.Row([tb4_domain, ft.Button("Tambah", on_click=tambah_domain_klik)]),
+        ft.Row([tb4_domain, ft.Button(content=ft.Text("Tambah"), on_click=tambah_domain_klik)]),
         ft.Divider(),
         list_domain_view
     ])
 
     # ==========================================
-    # TAB 5: DASHBOARD (Dinamis)
+    # TAB 5: DASHBOARD
     # ==========================================
     dashboard_list = ft.ListView(expand=True, spacing=10)
     
@@ -206,25 +200,25 @@ def main(page: ft.Page):
     tab6_content = tampilkan_menu_upload(page, file_picker)
 
     # ==========================================
-    # SUSUNAN TAB
+    # SUSUNAN TAB (FIX: ft.Tab menggunakan label)
     # ==========================================
     tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
         tabs=[
-            ft.Tab(text="Auto Set", content=tab1_content),
-            ft.Tab(text="Trigger", content=tab2_content),
-            ft.Tab(text="Set Email", content=tab3_content),
-            ft.Tab(text="Set Domain", content=tab4_content),
-            ft.Tab(text="Dashboard", content=tab5_content),
-            ft.Tab(text="Upload Foto", content=tab6_content),
+            ft.Tab(label="Auto Set", content=tab1_content),
+            ft.Tab(label="Trigger", content=tab2_content),
+            ft.Tab(label="Set Email", content=tab3_content),
+            ft.Tab(label="Set Domain", content=tab4_content),
+            ft.Tab(label="Dashboard", content=tab5_content),
+            ft.Tab(label="Upload Foto", content=tab6_content),
         ],
         expand=1,
     )
     page.add(tabs)
 
     # ==========================================
-    # LOGIKA DASHBOARD & ANTREAN (Worker)
+    # LOGIKA DASHBOARD & ANTREAN
     # ==========================================
     
     def tambah_ke_dashboard(tugas):
@@ -247,7 +241,11 @@ def main(page: ft.Page):
 
         kontainer_item = ft.Container(
             content=ft.Column([
-                ft.Row([teks_uid, ft.Button("Stop", icon=ft.Icons.STOP, on_click=stop_item, bgcolor=ft.Colors.RED_400), ft.Button("Hapus", icon=ft.Icons.DELETE, on_click=hapus_item)]),
+                ft.Row([
+                    teks_uid, 
+                    ft.Button(content=ft.Text("Stop"), icon=ft.Icons.STOP, on_click=stop_item, bgcolor=ft.Colors.RED_400), 
+                    ft.Button(content=ft.Text("Hapus"), icon=ft.Icons.DELETE, on_click=hapus_item)
+                ]),
                 teks_status
             ]),
             padding=10, border=ft.border.all(1, ft.Colors.GREY), border_radius=8
@@ -265,13 +263,12 @@ def main(page: ft.Page):
         while True:
             tugas_aktif = next((t for t in antrean_tugas if t['status'] == 'Waiting'), None)
             if not tugas_aktif:
-                break # Antrean kosong
+                break
 
             uid = tugas_aktif['uid']
             cookie = tugas_aktif['cookie']
             ui_status = tugas_aktif['_ui_status']
             
-            # Cek Stop
             if uid in daftar_stop:
                 tugas_aktif['status'] = 'Stopped'
                 ui_status.value = "Status: Dihentikan User"
@@ -279,29 +276,23 @@ def main(page: ft.Page):
                 page_ref.update()
                 continue
 
-            # Log Callback (Flet thread-safe)
             def log_ui(msg):
-                # Hanya update UI, print ke console untuk debug
                 print(f"[{uid}] {msg}")
-                # Jika ada log view di UI, bisa diarahkan ke situ
 
-            # Cek Waktu
             waktu_sekarang = time.time()
             if waktu_sekarang < tugas_aktif['waktu_mulai']:
                 selisih = int(tugas_aktif['waktu_mulai'] - waktu_sekarang)
                 ui_status.value = f"Status: Waiting ({selisih} detik lagi)"
                 page_ref.update()
                 time.sleep(1)
-                continue # Loop lagi
+                continue
 
-            # --- MULAI PROSES ---
             ui_status.value = "Status: Processing..."
             ui_status.color = ft.Colors.BLUE
             page_ref.update()
 
             gagal_checkpoint = False
             
-            # Eksekusi Berurutan
             for prog in tugas_aktif['program']:
                 if uid in daftar_stop:
                     ui_status.value = "Status: Dihentikan User"
@@ -318,12 +309,9 @@ def main(page: ft.Page):
                             
                     elif prog == "FOTO":
                         folder = tugas_aktif['folder_foto']
-                        if not folder:
-                            continue
+                        if not folder: continue
                         fotos = get_foto_di_folder(folder)
-                        if not fotos:
-                            continue # Skip jika kosong
-                        # Ambil foto pertama (atau bisa diacak)
+                        if not fotos: continue
                         path_foto = os.path.join(FOTO_DIR, folder, fotos[0])
                         app = FacebookProfileUploader(cookie, path_foto, log_ui)
                         ok, status = app.run_upload()
@@ -331,11 +319,11 @@ def main(page: ft.Page):
                             gagal_checkpoint = True; break
                             
                     elif prog == "EMAIL":
-                        data_email = ambil_dan_hapus_email(uid) # Ambil & Hapus
+                        data_email = ambil_dan_hapus_email(uid)
                         if not data_email:
-                            ui_status.value = "Status: Gagal (Data email kosong di DB)"
+                            ui_status.value = "Status: Gagal (Data email kosong)"
                             ui_status.color = ft.Colors.RED
-                            gagal_checkpoint = True; break # Stop program ini
+                            gagal_checkpoint = True; break
                             
                         app = FBAccountsCenterEmail(cookie, log_ui)
                         ok, status = app.run_ganti_email(data_email['email'], data_email['pin'])
@@ -355,10 +343,8 @@ def main(page: ft.Page):
                     gagal_checkpoint = True
                     break
                 
-                # Jeda antar program
                 time.sleep(tugas_aktif['delay_prog'])
 
-            # Selesai Program
             if gagal_checkpoint:
                 tugas_aktif['status'] = 'Gagal'
                 ui_status.value = "Status: Gagal / Checkpoint"
@@ -374,7 +360,6 @@ def main(page: ft.Page):
                 
             page_ref.update()
             
-            # Jeda antar akun
             if uid not in daftar_stop:
                 time.sleep(tugas_aktif['delay_akun'])
                 
