@@ -7,36 +7,36 @@ from fb_center import FBAccountsCenter
 COOKIE_CACHE = os.path.join(os.path.dirname(__file__), "cookie_cache.json")
 RESULT_FILE = os.path.join(os.path.dirname(__file__), "hasil.json")
 
-
 def load_cached_cookie():
     if os.path.exists(COOKIE_CACHE):
         try:
-            return json.load(open(COOKIE_CACHE)).get("cookie", "")
+            with open(COOKIE_CACHE, "r") as f:
+                return json.load(f).get("cookie", "")
         except Exception:
             return ""
     return ""
 
-
 def save_cookie(cookie_str):
     try:
-        json.dump({"cookie": cookie_str}, open(COOKIE_CACHE, "w"))
+        with open(COOKIE_CACHE, "w") as f:
+            json.dump({"cookie": cookie_str}, f)
     except Exception:
         pass
-
 
 def append_result(uid, key):
     data = []
     if os.path.exists(RESULT_FILE):
         try:
-            data = json.load(open(RESULT_FILE))
+            with open(RESULT_FILE, "r") as f:
+                data = json.load(f)
         except Exception:
             data = []
     data.append({"uid": uid, "key": key})
     try:
-        json.dump(data, open(RESULT_FILE, "w"), indent=2)
+        with open(RESULT_FILE, "w") as f:
+            json.dump(data, f, indent=2)
     except Exception:
         pass
-
 
 def main(page: ft.Page):
     page.title = "FB 2FA Center"
@@ -56,6 +56,8 @@ def main(page: ft.Page):
         password=True,
         can_reveal_password=True,
     )
+    
+    # ListView tetap sama di 1.0.5
     log_view = ft.ListView(expand=True, spacing=4, auto_scroll=True, height=260)
     result_view = ft.Text(selectable=True)
 
@@ -97,7 +99,8 @@ def main(page: ft.Page):
 
         threading.Thread(target=worker, daemon=True).start()
 
-    btn = ft.ElevatedButton("Jalankan", on_click=run_task)
+    # 🔥 FIX: ElevatedButton -> Button (Flet 1.0.5)
+    btn = ft.Button("Jalankan", on_click=run_task)
 
     page.add(
         cookie_field,
@@ -109,5 +112,6 @@ def main(page: ft.Page):
         result_view,
     )
 
-
-ft.run(main)
+# 🔥 FIX: ft.app(target=main) -> ft.run(main) (Flet 1.0.5)
+if __name__ == "__main__":
+    ft.run(main)
