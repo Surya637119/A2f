@@ -57,7 +57,6 @@ def main(page: ft.Page):
         tb1_dd_folder.visible = tb1_cb_foto.value
         tb1_dd_domain.visible = tb1_cb_delete.value
         
-        # FIX: ft.dropdown.Option -> ft.DropdownOption
         if tb1_cb_foto.value:
             tb1_dd_folder.options = [ft.DropdownOption(f) for f in get_semua_folder_foto()]
         if tb1_cb_delete.value:
@@ -72,7 +71,6 @@ def main(page: ft.Page):
         pass_val = tb1_password.value
         
         if not cookies or not cookies[0]:
-            # FIX: page.show_snack_bar -> page.show_dialog
             page.show_dialog(ft.SnackBar(ft.Text("❌ Cookie kosong!")))
             return
             
@@ -198,7 +196,7 @@ def main(page: ft.Page):
     # ==========================================
     tabs = ft.Tabs(
         selected_index=0,
-        length=6, # SUDAH DITAMBAHKAN
+        length=6,
         animation_duration=300,
         expand=1,
         content=ft.Column(
@@ -248,7 +246,9 @@ def main(page: ft.Page):
                 ]),
                 teks_status
             ]),
-            padding=10, border=ft.Border.all(1, ft.Colors.GREY), border_radius=8
+            padding=10, 
+            border=ft.Border.all(1, ft.Colors.GREY), # <-- FIX: ft.Border.all (B kapital)
+            border_radius=8
         )
         tugas['_ui_kontainer'] = kontainer_item
         tugas['_ui_status'] = teks_status
