@@ -5,6 +5,7 @@ import time
 import requests
 
 class FacebookProfileUploader:
+    # STATIC PARAMS persis dari autopp.py
     STATIC_PARAMS = {
         '__dyn': '7xeUjGU5a5Q1ryaxG4Vp41twWwIxu13wFwhUngS3q2ibwNw9G2Saw8i2S1DwUx60GE3Qwb-q7oc81EEbbwto88422y11wBz83WwgEcEhwGxu782lwv89kbxS1FwnE6a1awhUC7Udo5qfK0zEkxe2GewyDwkUe9obrwh8lwUwOzEjUlDw-wUwxwjFovUuz8e82xxW2-awLyESE7i3C22390bS16xi4UK2K2WEjDxe2B08-269wqQ1fxC13xecwBwWzUlwEKufxamEbbxG1fBG2-1mwto46fwk83KwHwOyUqxG0K8',
         '__csr': 'gb44a2i6PMjhlEt5gV6iMX26xRiGIAIRnqEAyHWEQgIBiOZNa9bEWLBnlkAyfhGhabHRJvlWq9OjaFdoPKpkh6WF-YzRKF6GLiQiFrZ9Rh9q8AVA-uBWKFbAmXSZ2bG8BABGLjJdljJaV7FeRmiVGUzXhd7ybXBRp9pFAAHDQfGh4hK8DpkqiSbDykmWA-aprKuuCVkqcgSKm8GqqBAmcqy9aF2FeQip7KmXyt2SGyeiuVkfAArip5CgR2EWica7aLyFkt7muEym9gvghUJkngHzmWixhkumqbFqCAGdzFrzGCyUWqUdpkqq9KaByUyEDy48m9z8C8Qu9DglHwOAgiAxqfGax94G3KFK5FoW2u269Bg8qxy8zpEozoiyFVUkzUkBy8pwxhFoW5Eqy8S3idy8fES3i5UC1owRDzooxp289Q3W12hbx63uewTwlo5W2O0Fo2MK1nU2VwaB3KbForg9ayAim0gy2m13wrE8eiewi88UW10wVU27xi5EKi3a6Q9w5YwWx90Oy81Y85a598526o9EWElgo82LwcBe3O367z0XK7o4C0LU4e8xm3-4AezE3Tw2SobF8nx604P9E0cAo2uw2l40eSw2uE09jEx08m00yJ806kS1bw7NzoC3uoJ0Fzonw7_wfOaS0kS0-8y0OS660lFwVw25t06Fw2FU0MKayEcodU2y8029W0hadw3q40jm04i818C8yE0PO0pvw6jyIxpQ4U4cUhw9t00hh80kVw6cw2FU2Ew8O4ywoQ0a4wOw1V2EBh6EngqRAAwPo0xYE13E29wKx61ew1RRU3PwKDyp206w8UHyopw',
@@ -14,9 +15,12 @@ class FacebookProfileUploader:
         '__s': 'nshl77:mv9lgw:uitrpb', '__comet_req': '15', '__ccg': 'EXCELLENT', 'dpr': '1',
     }
     
+    # List UA persis dari autopp.py
     USER_AGENTS = [
-        'Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36', 
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'Mozilla/5.0 (Linux; Android 13; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 13; M2010J19CG Build/TQ3A.230705.001) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.120 Mobile Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
     ]
 
     def __init__(self, cookie_string, photo_path, log_callback):
@@ -29,37 +33,91 @@ class FacebookProfileUploader:
         self._parse_cookies()
         
     def _parse_cookies(self):
+        # Sama seperti autopp.py
         for item in self.cookie_string.split('; '):
             if '=' in item:
                 k, v = item.split('=', 1)
                 self.session.cookies.set(k, v, domain='.facebook.com')
+                self.session.cookies.set(k, v, domain='web.facebook.com')
+                self.session.cookies.set(k, v, domain='m.facebook.com')
                 if k == 'c_user': self.uid = v
 
-    def _extract_tokens(self, html):
-        patterns = {
-            'fb_dtsg': r'"token":"(N[^"]+)"', 
-            'jazoest': r'jazoest=(\d+)', 
-            'lsd': r'"lsd":"([^"]+)"', 
-            '__rev': r'"rev":(\d+)', 
-            '__hsi': r'"hsi":"(\d+)"', 
-            '__hs': r'"haste_session":"([^"]+)"', 
-            '__spin_r': r'"__spin_r":(\d+)', 
-            '__spin_t': r'"__spin_t":(\d+)"', 
-            '__spin_b': r'"__spin_b":"([^"]+)"'
-        }
-        for k, p in patterns.items():
-            m = re.search(p, html)
-            if m: self.tokens[k] = m.group(1)
+    def _extract_tokens_with_regex(self, html):
+        # Sama persis dengan autopp.py
+        tokens = {}
+        token_match = re.search(r'"token":"(N[^"]+)"', html)
+        if token_match: tokens['fb_dtsg'] = token_match.group(1)
+        else:
+            dtsg_match = re.search(r'"dtsg":"([^"]+)"', html)
+            if dtsg_match: tokens['fb_dtsg'] = dtsg_match.group(1)
+        
+        jazoest_match = re.search(r'jazoest=(\d+)', html)
+        if jazoest_match: tokens['jazoest'] = jazoest_match.group(1)
+        
+        for pattern in [r'"lsd":"([^"]+)"', r'name="lsd"[^>]+value="([^"]+)"']:
+            lsd_match = re.search(pattern, html)
+            if lsd_match: 
+                tokens['lsd'] = lsd_match.group(1)
+                break
+        
+        rev_match = re.search(r'"rev":(\d+)', html)
+        if rev_match: tokens['__rev'] = rev_match.group(1)
+        
+        hsi_match = re.search(r'"hsi":"(\d+)"', html)
+        if hsi_match: tokens['__hsi'] = hsi_match.group(1)
+        
+        hs_match = re.search(r'"haste_session":"([^"]+)"', html)
+        if hs_match: tokens['__hs'] = hs_match.group(1)
+        else:
+            hs_match2 = re.search(r'"__hs":"([^"]+)"', html)
+            if hs_match2: tokens['__hs'] = hs_match2.group(1)
+        
+        spin_r_match = re.search(r'"__spin_r":(\d+)', html)
+        if spin_r_match: tokens['__spin_r'] = spin_r_match.group(1)
+        
+        spin_t_match = re.search(r'"__spin_t":(\d+)', html)
+        if spin_t_match: tokens['__spin_t'] = spin_t_match.group(1)
+        
+        spin_b_match = re.search(r'"__spin_b":"([^"]+)"', html)
+        if spin_b_match: tokens['__spin_b'] = spin_b_match.group(1)
+        
+        return tokens
 
     def _get_initial_tokens(self):
-        for ua in self.USER_AGENTS:
-            headers = {'user-agent': ua, 'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'}
+        # Loop semua UA persis seperti autopp.py
+        for ua_index, user_agent in enumerate(self.USER_AGENTS, 1):
+            self.log(f"    Trying UA #{ua_index}...")
+            headers = {
+                'authority': 'web.facebook.com',
+                'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'accept-language': 'en-US,en;q=0.9',
+                'cache-control': 'max-age=0',
+                'sec-ch-ua': '"Not:A-Brand";v="99", "Chromium";v="112"',
+                'sec-ch-ua-mobile': '?1' if 'Android' in user_agent or 'iPhone' in user_agent else '?0',
+                'sec-ch-ua-platform': '"Android"' if 'Android' in user_agent else ('"iOS"' if 'iPhone' in user_agent else '"Windows"'),
+                'sec-fetch-dest': 'document',
+                'sec-fetch-mode': 'navigate',
+                'sec-fetch-site': 'none',
+                'upgrade-insecure-requests': '1',
+                'user-agent': user_agent,
+            }
+            
             try:
-                resp = self.session.get(f'https://web.facebook.com/profile.php?id={self.uid}', headers=headers, timeout=15)
-                if resp.status_code == 200 and ('logout' in resp.text.lower() or 'settings' in resp.text.lower()):
-                    self._extract_tokens(resp.text)
-                    return 'fb_dtsg' in self.tokens
-            except: pass
+                response = self.session.get(f'https://web.facebook.com/profile.php?id={self.uid}', headers=headers, timeout=15, allow_redirects=True)
+                
+                if response.status_code == 200:
+                    html_lower = response.text.lower()
+                    if 'logout' in html_lower or 'settings' in html_lower or 'friends' in html_lower:
+                        self.log(f"    ✅ Login successful with UA #{ua_index}!")
+                        self.tokens = self._extract_tokens_with_regex(response.text)
+                        return 'fb_dtsg' in self.tokens
+                    else:
+                        self.log(f"    ⚠️ Login gagal - tidak menemukan indicator login")
+                else:
+                    self.log(f"    ? Unexpected status: {response.status_code}")
+            except Exception as e:
+                self.log(f"    ✗ Error: {e}")
+        
         return False
 
     def _upload_photo(self):
@@ -72,10 +130,20 @@ class FacebookProfileUploader:
         body_header = f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{os.path.basename(self.photo_path)}"\r\nContent-Type: image/jpeg\r\n\r\n'.encode()
         body_footer = f'\r\n--{boundary}--\r\n'.encode()
         
-        params = {'photo_source': '57', 'profile_id': self.uid, 'av': self.uid, '__user': self.uid, '__a': '1', '__req': '1n', **self.STATIC_PARAMS}
+        # PARAMS persis autopp.py
+        params = {'photo_source': '57', 'profile_id': self.uid, 'av': self.uid, '__aaid': '0', '__user': self.uid, '__a': '1', '__req': '1n', **self.STATIC_PARAMS}
         params.update({k: v for k, v in self.tokens.items() if k in ['__hs', '__rev', '__hsi', 'fb_dtsg', 'jazoest', 'lsd', '__spin_r', '__spin_t', '__spin_b']})
         
-        headers = {'user-agent': self.USER_AGENTS[1], 'content-type': f'multipart/form-data; boundary={boundary}', 'x-asbd-id': '359341', 'origin': 'https://web.facebook.com', 'referer': f'https://web.facebook.com/profile.php?id={self.uid}'}
+        headers = {
+            'authority': 'web.facebook.com',
+            'accept': '*/*',
+            'accept-language': 'en-US,en;q=0.9',
+            'origin': 'https://web.facebook.com',
+            'referer': f'https://web.facebook.com/profile.php?id={self.uid}',
+            'user-agent': self.USER_AGENTS[2], # Gunakan UA Windows untuk upload (lebih stabil)
+            'content-type': f'multipart/form-data; boundary={boundary}',
+            'x-asbd-id': '359341',
+        }
         if 'lsd' in self.tokens: headers['x-fb-lsd'] = self.tokens['lsd']
         
         resp = self.session.post('https://web.facebook.com/profile/picture/upload/', params=params, data=body_header + file_content + body_footer, headers=headers)
@@ -97,7 +165,7 @@ class FacebookProfileUploader:
         }
         
         data = {
-            'av': self.uid, '__user': self.uid, '__a': '1', '__req': '1o', 'dpr': '1', '__ccg': 'EXCELLENT', 
+            'av': self.uid, '__aaid': '0', '__user': self.uid, '__a': '1', '__req': '1o', 'dpr': '1', '__ccg': 'EXCELLENT', 
             '__s': self.STATIC_PARAMS['__s'], '__dyn': self.STATIC_PARAMS['__dyn'], '__csr': self.STATIC_PARAMS['__csr'], 
             '__hsdp': self.STATIC_PARAMS['__hsdp'], '__hblp': self.STATIC_PARAMS['__hblp'], '__sjsp': self.STATIC_PARAMS['__sjsp'], 
             '__comet_req': '15', '__crn': 'comet.fbweb.CometProfileTimelineListViewRoute', 'fb_api_caller_class': 'RelayModern', 
@@ -106,7 +174,16 @@ class FacebookProfileUploader:
         }
         data.update({k: v for k, v in self.tokens.items() if k in ['__hs', '__rev', '__hsi', 'fb_dtsg', 'jazoest', 'lsd', '__spin_r', '__spin_t', '__spin_b']})
         
-        headers = {'user-agent': self.USER_AGENTS[1], 'content-type': 'application/x-www-form-urlencoded', 'origin': 'https://web.facebook.com', 'referer': f'https://web.facebook.com/profile.php?id={self.uid}'}
+        headers = {
+            'authority': 'web.facebook.com',
+            'accept': '*/*',
+            'accept-language': 'en-US,en;q=0.9',
+            'content-type': 'application/x-www-form-urlencoded',
+            'origin': 'https://web.facebook.com',
+            'referer': f'https://web.facebook.com/profile.php?id={self.uid}&_rdc=1&_rdr',
+            'user-agent': self.USER_AGENTS[2], # Gunakan UA Windows
+            'x-asbd-id': '359341',
+        }
         if 'lsd' in self.tokens: headers['x-fb-lsd'] = self.tokens['lsd']
         
         resp = self.session.post('https://web.facebook.com/api/graphql/', data=data, headers=headers)
