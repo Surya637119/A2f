@@ -1,7 +1,7 @@
 [project]
 name = "fb-multitool"
 version = "1.0.0"
-requires-python = ">=3.9"
+requires-python = ">=3.12,<3.13"  # <-- UBAH BARIS INI
 dependencies = [
     "flet==1.0.5",
     "requests",
@@ -10,5 +10,5 @@ dependencies = [
 
 [tool.flet]
 org = "com.namamu"
-product = "FBMultiTool"
+product = "fbmultitool"
 assets = ["assets"]
