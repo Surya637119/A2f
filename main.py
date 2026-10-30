@@ -17,10 +17,9 @@ from fb_email import FBAccountsCenterEmail
 from fb_delete import FBAccountsCenterDelete
 from fb_trigger import FBAccountsCenterTrigger
 
-# --- STATE GLOBAL UNTUK ANTREAN ---
+# --- STATE GLOBAL ---
 antrean_tugas = []
 daftar_stop = set()
-worker_aktif = False
 
 async def _update_ui(control, **kwargs):
     for k, v in kwargs.items():
@@ -89,11 +88,13 @@ def main(page: ft.Page):
         except: menit, d_akun, d_prog = 0, 5, 3
 
         waktu_mulai = time.time() + (menit * 60)
+        count = 0
 
         for c in cookies:
             if c.strip():
                 uid_match = re.search(r'c_user=(\d+)', c)
                 uid = uid_match.group(1) if uid_match else "Unknown"
+                
                 tugas = {
                     "uid": uid, "cookie": c.strip(), "password": tb1_password.value,
                     "program": progs, "folder_foto": tb1_dd_folder.value,
@@ -101,14 +102,18 @@ def main(page: ft.Page):
                     "delay_akun": d_akun, "delay_prog": d_prog, "status": "Waiting"
                 }
                 antrean_tugas.append(tugas)
-                tambah_ke_dashboard(tugas)
+                
+                # Buat UI untuk akun ini & jalankan thread-nya sendiri
+                ui_status, ui_kontainer = tambah_ke_dashboard(tugas)
+                tugas['_ui_status'] = ui_status
+                tugas['_ui_kontainer'] = ui_kontainer
+                
+                threading.Thread(target=jalankan_tugas, args=(tugas, page), daemon=True).start()
+                count += 1
         
-        show_msg_dialog(f"✅ {len(cookies)} akun masuk antrean!")
+        show_msg_dialog(f"✅ {count} akun dimasukkan ke antrean!")
         tb1_cookie.value = ""
         page.update()
-        
-        global worker_aktif
-        if not worker_aktif: threading.Thread(target=proses_antrean, args=(page,), daemon=True).start()
 
     tab1_content = ft.Column([
         ft.Text("Pengaturan Akun", weight=ft.FontWeight.BOLD),
@@ -248,7 +253,7 @@ def main(page: ft.Page):
     page.add(tabs)
 
     # ==========================================
-    # LOGIKA DASHBOARD & ANTREAN
+    # LOGIKA DASHBOARD
     # ==========================================
     def tambah_ke_dashboard(tugas):
         uid = tugas['uid']
@@ -277,105 +282,100 @@ def main(page: ft.Page):
             ]),
             padding=10, border=ft.Border.all(1, ft.Colors.GREY), border_radius=8
         )
-        tugas['_ui_kontainer'] = kontainer_item
-        tugas['_ui_status'] = teks_status
         dashboard_list.controls.append(kontainer_item)
         page.update()
+        return teks_status, kontainer_item
 
-    def proses_antrean(page_ref):
-        global worker_aktif
-        worker_aktif = True
+    # ==========================================
+    # LOGIKA EKSEKUSI TIAP AKUN (MULTI-THREAD)
+    # ==========================================
+    def jalankan_tugas(tugas, page_ref):
+        uid, cookie = tugas['uid'], tugas['cookie']
+        ui_status = tugas['_ui_status']
         
-        while True:
-            tugas_aktif = next((t for t in antrean_tugas if t['status'] == 'Waiting'), None)
-            if not tugas_aktif: break
-
-            uid, cookie = tugas_aktif['uid'], tugas_aktif['cookie']
-            ui_status = tugas_aktif['_ui_status']
-            
+        # 1. Proses Timer
+        while time.time() < tugas['waktu_mulai']:
             if uid in daftar_stop:
-                tugas_aktif['status'] = 'Stopped'
+                tugas['status'] = 'Stopped'
                 page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan User", color=ft.Colors.GREY)
-                continue
+                return
+            
+            selisih = int(tugas['waktu_mulai'] - time.time())
+            page_ref.run_task(_update_ui, ui_status, value=f"Status: Waiting ({selisih} detik lagi)", color=ft.Colors.ORANGE)
+            time.sleep(1)
+        
+        # 2. Mulai Eksekusi Program
+        page_ref.run_task(_update_ui, ui_status, value="Status: Processing...", color=ft.Colors.BLUE)
+        log_tb1(f"\n▶️ Memulai proses UID: {uid}")
 
-            if time.time() < tugas_aktif['waktu_mulai']:
-                selisih = int(tugas_aktif['waktu_mulai'] - time.time())
-                page_ref.run_task(_update_ui, ui_status, value=f"Status: Waiting ({selisih} detik lagi)")
-                time.sleep(1)
-                continue
-
-            page_ref.run_task(_update_ui, ui_status, value="Status: Processing...", color=ft.Colors.BLUE)
-            log_tb1(f"\n▶️ Memulai proses UID: {uid}")
-
-            gagal_checkpoint = False
-            for prog in tugas_aktif['program']:
-                if uid in daftar_stop:
-                    page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan User", color=ft.Colors.GREY)
-                    break
-                
-                try:
-                    if prog == "A2F":
-                        log_tb1(f"🔄 [A2F] Memproses...")
-                        app = FBAccountsCenterA2F(cookie, log_tb1)
-                        ok, status = app.run_a2f(tugas_aktif['password'])
-                        if not ok and status == "checkpoint": gagal_checkpoint = True; break
-                    
-                    elif prog == "FOTO":
-                        folder = tugas_aktif['folder_foto']
-                        if not folder: continue
-                        fotos = get_foto_di_folder(folder)
-                        if not fotos: continue
-                        nama_foto = random.choice(fotos)
-                        path_foto = get_path_foto(folder, nama_foto)
-                        
-                        log_tb1(f"🖼️ [FOTO] Menggunakan: {nama_foto}")
-                        app = FacebookProfileUploader(cookie, path_foto, log_tb1)
-                        ok, status = app.run_upload()
-                        if not ok and status == "checkpoint": gagal_checkpoint = True; break
-                    
-                    elif prog == "EMAIL":
-                        log_tb1(f"🔄 [EMAIL] Memproses...")
-                        data_email = ambil_dan_hapus_email(uid)
-                        if not data_email:
-                            log_tb1("❌ Data email kosong di DB!")
-                            page_ref.run_task(_update_ui, ui_status, value="Status: Gagal (Email kosong)", color=ft.Colors.RED)
-                            gagal_checkpoint = True; break
-                        app = FBAccountsCenterEmail(cookie, log_tb1)
-                        ok, status = app.run_ganti_email(data_email['email'], data_email['pin'])
-                        if not ok and status == "checkpoint": gagal_checkpoint = True; break
-                    
-                    elif prog == "DELETE":
-                        domain = tugas_aktif['domain']
-                        if not domain: continue
-                        log_tb1(f"🔄 [DELETE] Memproses...")
-                        app = FBAccountsCenterDelete(cookie, log_tb1)
-                        ok, status = app.run_delete(domain)
-                        if not ok and status == "checkpoint": gagal_checkpoint = True; break
-
-                except Exception as ex:
-                    log_tb1(f"❌ Error Fatal: {ex}")
-                    gagal_checkpoint = True
-                    break
-                
-                time.sleep(tugas_aktif['delay_prog'])
-
-            if gagal_checkpoint:
-                tugas_aktif['status'] = 'Gagal'
-                page_ref.run_task(_update_ui, ui_status, value="Status: Gagal / Checkpoint", color=ft.Colors.RED)
-                log_tb1(f"⛔ Proses UID {uid} dihentikan (Checkpoint).")
-            elif uid in daftar_stop:
-                tugas_aktif['status'] = 'Stopped'
+        gagal_checkpoint = False
+        for prog in tugas['program']:
+            if uid in daftar_stop:
                 page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan User", color=ft.Colors.GREY)
                 log_tb1(f"⏹️ Proses UID {uid} dihentikan user.")
-            else:
-                tugas_aktif['status'] = 'Sukses'
-                page_ref.run_task(_update_ui, ui_status, value="Status: Sukses ✅", color=ft.Colors.GREEN)
-                log_tb1(f"✅ Proses UID {uid} Selesai.")
-                
-            if uid not in daftar_stop: time.sleep(tugas_aktif['delay_akun'])
-            daftar_stop.discard(uid)
+                return
+            
+            try:
+                # Membuat fungsi log khusus untuk UID ini agar rapi di kotak hitam
+                def make_logger(u):
+                    return lambda m: log_tb1(f"[{u}] {m}")
 
-        worker_aktif = False
+                if prog == "A2F":
+                    log_tb1(f"🔄 [{uid}] [A2F] Memproses...")
+                    app = FBAccountsCenterA2F(cookie, make_logger(uid))
+                    ok, status = app.run_a2f(tugas['password'])
+                    if not ok and status == "checkpoint": gagal_checkpoint = True; break
+                
+                elif prog == "FOTO":
+                    folder = tugas['folder_foto']
+                    if not folder: continue
+                    fotos = get_foto_di_folder(folder)
+                    if not fotos: continue
+                    nama_foto = random.choice(fotos)
+                    path_foto = get_path_foto(folder, nama_foto)
+                    
+                    log_tb1(f"🖼️ [{uid}] [FOTO] Menggunakan: {nama_foto}")
+                    app = FacebookProfileUploader(cookie, path_foto, make_logger(uid))
+                    ok, status = app.run_upload()
+                    if not ok and status == "checkpoint": gagal_checkpoint = True; break
+                
+                elif prog == "EMAIL":
+                    log_tb1(f"🔄 [{uid}] [EMAIL] Memproses...")
+                    data_email = ambil_dan_hapus_email(uid)
+                    if not data_email:
+                        log_tb1(f"❌ [{uid}] Data email kosong di DB!")
+                        page_ref.run_task(_update_ui, ui_status, value="Status: Gagal (Email kosong)", color=ft.Colors.RED)
+                        gagal_checkpoint = True; break
+                    app = FBAccountsCenterEmail(cookie, make_logger(uid))
+                    ok, status = app.run_ganti_email(data_email['email'], data_email['pin'])
+                    if not ok and status == "checkpoint": gagal_checkpoint = True; break
+                
+                elif prog == "DELETE":
+                    domain = tugas['domain']
+                    if not domain: continue
+                    log_tb1(f"🔄 [{uid}] [DELETE] Memproses...")
+                    app = FBAccountsCenterDelete(cookie, make_logger(uid))
+                    ok, status = app.run_delete(domain)
+                    if not ok and status == "checkpoint": gagal_checkpoint = True; break
+
+            except Exception as ex:
+                log_tb1(f"❌ [{uid}] Error Fatal: {ex}")
+                gagal_checkpoint = True
+                break
+            
+            time.sleep(tugas['delay_prog'])
+
+        # 3. Update Status Akhir
+        if gagal_checkpoint:
+            tugas['status'] = 'Gagal'
+            page_ref.run_task(_update_ui, ui_status, value="Status: Gagal / Checkpoint", color=ft.Colors.RED)
+            log_tb1(f"⛔ Proses UID {uid} dihentikan (Checkpoint).")
+        elif uid not in daftar_stop:
+            tugas['status'] = 'Sukses'
+            page_ref.run_task(_update_ui, ui_status, value="Status: Sukses ✅", color=ft.Colors.GREEN)
+            log_tb1(f"✅ Proses UID {uid} Selesai.")
+        
+        daftar_stop.discard(uid)
 
 if __name__ == "__main__":
     ft.run(main)
