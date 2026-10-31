@@ -4,6 +4,7 @@ import time
 import os
 import re
 import random
+import json
 from datetime import datetime
 
 from db_manager import (
@@ -17,8 +18,10 @@ from fb_email import FBAccountsCenterEmail
 from fb_delete import FBAccountsCenterDelete
 from fb_trigger import FBAccountsCenterTrigger
 
+# --- STATE GLOBAL ---
 antrean_tugas = []
 daftar_stop = set()
+STATE_FILE = os.path.join(os.path.dirname(__file__), "antrean_state.json")
 
 async def _update_ui(control, **kwargs):
     for k, v in kwargs.items():
@@ -29,6 +32,38 @@ def buat_kotak_log(height=180):
     lv = ft.ListView(expand=True, spacing=5, auto_scroll=True, height=height, padding=10)
     container = ft.Container(content=lv, bgcolor=ft.Colors.BLACK_87, border_radius=10, padding=10, visible=False)
     return lv, container
+
+# --- FUNGSI SIMPAN & MUAT STATE (ANTI HILANG) ---
+def simpan_state_antrean():
+    data_simpan = []
+    for t in antrean_tugas:
+        if t['status'] in ['Waiting', 'Processing']:
+            # Hanya simpan data teks, buang objek UI (_ui_status)
+            t_copy = {k: v for k, v in t.items() if not k.startswith('_')}
+            data_simpan.append(t_copy)
+    
+    try:
+        with open(STATE_FILE, 'w') as f:
+            json.dump(data_simpan, f)
+    except Exception as e:
+        print(f"Gagal simpan state: {e}")
+
+def muat_state_antrean():
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return []
+    return []
+
+def hapus_state_antrean():
+    if os.path.exists(STATE_FILE):
+        try:
+            os.remove(STATE_FILE)
+        except:
+            pass
+
 
 def main(page: ft.Page):
     page.title = "FB MultiTool Pro"
@@ -115,6 +150,7 @@ def main(page: ft.Page):
         show_msg_dialog(f"✅ {count} akun dimasukkan ke antrean!")
         tb1_cookie.value = ""
         page.update()
+        simpan_state_antrean() # Simpan ke file
 
     tab1_content = ft.Column([
         ft.Text("Pengaturan Akun", weight=ft.FontWeight.BOLD),
@@ -310,6 +346,7 @@ def main(page: ft.Page):
         uid, cookie = tugas['uid'], tugas['cookie']
         ui_status = tugas['_ui_status']
         
+        # Timer
         while time.time() < tugas['waktu_mulai']:
             if uid in daftar_stop:
                 tugas['status'] = 'Stopped'
@@ -394,6 +431,28 @@ def main(page: ft.Page):
             log_tb1(f"✅ Proses UID {uid} Selesai.")
         
         daftar_stop.discard(uid)
+        # Hapus dari file state karena sudah selesai/gagal
+        simpan_state_antrean()
+
+    # ==========================================
+    # MEMUAT ANTREAN SAAT APLIKASI DIBUKA
+    # ==========================================
+    antrean_lama = muat_state_antrean()
+    if antrean_lama:
+        log_tb1(f"🔄 Memulihkan {len(antrean_lama)} antrean yang tertunda...")
+        for tugas_lama in antrean_lama:
+            # Jika waktu mulai sudah lewat, paksa mulai sekarang
+            if tugas_lama['waktu_mulai'] < time.time():
+                tugas_lama['waktu_mulai'] = time.time()
+            
+            tugas_lama['status'] = "Waiting"
+            antrean_tugas.append(tugas_lama)
+            
+            ui_status, ui_kontainer = tambah_ke_dashboard(tugas_lama)
+            tugas_lama['_ui_status'] = ui_status
+            tugas_lama['_ui_kontainer'] = ui_kontainer
+            
+            threading.Thread(target=jalankan_tugas, args=(tugas_lama, page), daemon=True).start()
 
 if __name__ == "__main__":
     ft.run(main)
