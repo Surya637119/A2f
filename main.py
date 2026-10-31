@@ -18,7 +18,6 @@ from fb_email import FBAccountsCenterEmail
 from fb_delete import FBAccountsCenterDelete
 from fb_trigger import FBAccountsCenterTrigger
 
-# --- STATE GLOBAL ---
 antrean_tugas = []
 daftar_stop = set()
 STATE_FILE = os.path.join(os.path.dirname(__file__), "antrean_state.json")
@@ -33,37 +32,29 @@ def buat_kotak_log(height=180):
     container = ft.Container(content=lv, bgcolor=ft.Colors.BLACK_87, border_radius=10, padding=10, visible=False)
     return lv, container
 
-# --- FUNGSI SIMPAN & MUAT STATE (ANTI HILANG) ---
 def simpan_state_antrean():
     data_simpan = []
     for t in antrean_tugas:
         if t['status'] in ['Waiting', 'Processing']:
-            # Hanya simpan data teks, buang objek UI (_ui_status)
             t_copy = {k: v for k, v in t.items() if not k.startswith('_')}
             data_simpan.append(t_copy)
-    
     try:
         with open(STATE_FILE, 'w') as f:
             json.dump(data_simpan, f)
-    except Exception as e:
-        print(f"Gagal simpan state: {e}")
+    except: pass
 
 def muat_state_antrean():
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, 'r') as f:
                 return json.load(f)
-        except:
-            return []
+        except: return []
     return []
 
 def hapus_state_antrean():
     if os.path.exists(STATE_FILE):
-        try:
-            os.remove(STATE_FILE)
-        except:
-            pass
-
+        try: os.remove(STATE_FILE)
+        except: pass
 
 def main(page: ft.Page):
     page.title = "FB MultiTool Pro"
@@ -96,9 +87,7 @@ def main(page: ft.Page):
 
     def log_tb1(msg):
         tb1_log_ctn.visible = True
-        tb1_log_lv.controls.append(
-            ft.Text(str(msg), color=ft.Colors.WHITE, size=12, font_family="monospace", selectable=True)
-        )
+        tb1_log_lv.controls.append(ft.Text(str(msg), color=ft.Colors.WHITE, size=12, font_family="monospace", selectable=True))
         page.update()
 
     def on_cek_program(e):
@@ -150,7 +139,7 @@ def main(page: ft.Page):
         show_msg_dialog(f"✅ {count} akun dimasukkan ke antrean!")
         tb1_cookie.value = ""
         page.update()
-        simpan_state_antrean() # Simpan ke file
+        simpan_state_antrean() # Simpan setiap ada antrean baru
 
     tab1_content = ft.Column([
         ft.Text("Pengaturan Akun", weight=ft.FontWeight.BOLD),
@@ -318,13 +307,19 @@ def main(page: ft.Page):
         teks_status = ft.Text(f"Status: {tugas['status']} (Mulai: {waktu_str})", color=ft.Colors.ORANGE)
         
         def hapus_item(e):
+            # 1. Hapus dari list memori
             if tugas in antrean_tugas: antrean_tugas.remove(tugas)
+            # 2. Hapus dari file State agar tidak muncul lagi saat dibuka
+            simpan_state_antrean()
+            # 3. Sembunyikan dari UI
             kontainer_item.visible = False
             page.update()
 
         def stop_item(e):
             daftar_stop.add(uid)
             teks_status.value = "Status: Stopping..."
+            # Simpan state agar status ini tidak muncul lagi saat aplikasi dibuka
+            simpan_state_antrean() 
             page.update()
 
         kontainer_item = ft.Container(
@@ -348,9 +343,10 @@ def main(page: ft.Page):
         
         # Timer
         while time.time() < tugas['waktu_mulai']:
-            if uid in daftar_stop:
+            # Cek jika di-stop
+            if uid in daftar_stop or tugas not in antrean_tugas:
                 tugas['status'] = 'Stopped'
-                page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan User", color=ft.Colors.GREY)
+                page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan", color=ft.Colors.GREY)
                 return
             selisih = int(tugas['waktu_mulai'] - time.time())
             page_ref.run_task(_update_ui, ui_status, value=f"Status: Waiting ({selisih} detik lagi)", color=ft.Colors.ORANGE)
@@ -365,8 +361,8 @@ def main(page: ft.Page):
         pin_target = data_email_db['pin'] if data_email_db else ""
 
         for prog in tugas['program']:
-            if uid in daftar_stop:
-                page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan User", color=ft.Colors.GREY)
+            if uid in daftar_stop or tugas not in antrean_tugas:
+                page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan", color=ft.Colors.GREY)
                 log_tb1(f"⏹️ Proses UID {uid} dihentikan user.")
                 return
             
@@ -424,14 +420,14 @@ def main(page: ft.Page):
             log_tb1(f"⛔ Proses UID {uid} dihentikan (Checkpoint).")
         elif uid in daftar_stop:
             tugas['status'] = 'Stopped'
-            page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan User", color=ft.Colors.GREY)
+            page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan", color=ft.Colors.GREY)
         else:
             tugas['status'] = 'Sukses'
             page_ref.run_task(_update_ui, ui_status, value="Status: Sukses ✅", color=ft.Colors.GREEN)
             log_tb1(f"✅ Proses UID {uid} Selesai.")
         
         daftar_stop.discard(uid)
-        # Hapus dari file state karena sudah selesai/gagal
+        # Simpan state terbaru (menghapus yang sudah sukses/gagal)
         simpan_state_antrean()
 
     # ==========================================
@@ -441,7 +437,6 @@ def main(page: ft.Page):
     if antrean_lama:
         log_tb1(f"🔄 Memulihkan {len(antrean_lama)} antrean yang tertunda...")
         for tugas_lama in antrean_lama:
-            # Jika waktu mulai sudah lewat, paksa mulai sekarang
             if tugas_lama['waktu_mulai'] < time.time():
                 tugas_lama['waktu_mulai'] = time.time()
             
