@@ -21,23 +21,24 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # LANGKAH BARU: Menyiapkan Android SDK & Otomatis Menerima Lisensi
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+
       - name: Cache Flet & Flutter
         uses: actions/cache@v4
         with:
           path: |
             ~/.flet
             ~/.pub-cache
-          key: v2-${{ runner.os }}-flet-${{ hashFiles('pyproject.toml') }}
+          key: v3-${{ runner.os }}-flet-${{ hashFiles('pyproject.toml') }}
           restore-keys: |
-            v2-${{ runner.os }}-flet-
+            v3-${{ runner.os }}-flet-
 
       - name: Install Flet
         run: pip install flet==1.0.5
-
-      # PERBAIKAN: Terima semua lisensi Android SDK secara otomatis
-      - name: Accept Android SDK Licenses
-        run: |
-          yes | sdkmanager --licenses || true
 
       - name: Build APK
         run: flet build apk --yes --arch arm64-v8a
