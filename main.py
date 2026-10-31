@@ -44,7 +44,6 @@ def main(page: ft.Page):
     # ==========================================
     # TAB 1: AUTO SET PROFILE
     # ==========================================
-    # ... (Bagian UI form Input, Checkbox, Dropdown sama seperti sebelumnya) ...
     tb1_cookie = ft.TextField(label="Cookie", multiline=True, min_lines=2, max_lines=4, text_size=12)
     tb1_password = ft.TextField(label="Password FB", password=True, can_reveal_password=True)
     tb1_timer = ft.TextField(label="Timer Mulai (Menit)", value="0", keyboard_type=ft.KeyboardType.NUMBER)
@@ -62,7 +61,6 @@ def main(page: ft.Page):
 
     def log_tb1(msg):
         tb1_log_ctn.visible = True
-        # KUNCI UTAMA: selectable=True agar bisa di-klik lama (copy)
         tb1_log_lv.controls.append(
             ft.Text(str(msg), color=ft.Colors.WHITE, size=12, font_family="monospace", selectable=True)
         )
@@ -132,10 +130,8 @@ def main(page: ft.Page):
         tb1_log_ctn
     ], scroll=ft.ScrollMode.AUTO)
 
-    # ... (Tab 2, 3, 4 sama seperti sebelumnya, pastikan log-nya pakai selectable=True) ...
-
     # ==========================================
-    # TAB 2: TRIGGER EMAIL (Update Log)
+    # TAB 2: TRIGGER EMAIL
     # ==========================================
     tb2_cookie = ft.TextField(label="Cookie", multiline=True, min_lines=2, max_lines=4, text_size=12)
     tb2_email = ft.TextField(label="Email Target (Yang mau di-trigger)")
@@ -179,7 +175,7 @@ def main(page: ft.Page):
     ], scroll=ft.ScrollMode.AUTO)
 
     # ==========================================
-    # TAB 3, 4, 5 (Sama seperti versi sebelumnya)
+    # TAB 3: SET DATA EMAIL
     # ==========================================
     tb3_uid = ft.TextField(label="UID")
     tb3_email = ft.TextField(label="Email")
@@ -199,6 +195,9 @@ def main(page: ft.Page):
         ft.Button(content=ft.Text("Simpan ke Database"), on_click=simpan_email_klik, bgcolor=ft.Colors.GREEN_600, color=ft.Colors.WHITE)
     ])
 
+    # ==========================================
+    # TAB 4: SET DOMAIN
+    # ==========================================
     tb4_domain = ft.TextField(label="Domain (Cth: outlook.com)")
     list_domain_view = ft.ListView(expand=True, spacing=5)
 
@@ -221,6 +220,9 @@ def main(page: ft.Page):
         list_domain_view
     ])
 
+    # ==========================================
+    # TAB 5: DASHBOARD
+    # ==========================================
     dashboard_list = ft.ListView(expand=True, spacing=10)
     
     async def share_db_a2f(e):
@@ -380,4 +382,18 @@ def main(page: ft.Page):
             time.sleep(tugas['delay_prog'])
 
         if gagal_checkpoint:
-            tugas['status'] = '
+            tugas['status'] = 'Gagal'
+            page_ref.run_task(_update_ui, ui_status, value="Status: Gagal / Checkpoint", color=ft.Colors.RED)
+            log_tb1(f"⛔ Proses UID {uid} dihentikan (Checkpoint).")
+        elif uid in daftar_stop:
+            tugas['status'] = 'Stopped'
+            page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan User", color=ft.Colors.GREY)
+        else:
+            tugas['status'] = 'Sukses'
+            page_ref.run_task(_update_ui, ui_status, value="Status: Sukses ✅", color=ft.Colors.GREEN)
+            log_tb1(f"✅ Proses UID {uid} Selesai.")
+        
+        daftar_stop.discard(uid)
+
+if __name__ == "__main__":
+    ft.run(main)
