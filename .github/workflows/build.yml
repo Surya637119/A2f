@@ -29,8 +29,18 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # Android SDK sudah ada di runner (ANDROID_HOME).
-      # Cukup accept lisensi, tanpa action setup-android.
+      # Debug: pastikan file proyek ada di tempat yang benar
+      - name: Show project files
+        run: |
+          echo "== Root =="; ls -la
+          echo "== pyproject.toml =="; cat pyproject.toml || echo "TIDAK ADA pyproject.toml"
+          echo "== File .py =="; find . -name "*.py" -not -path "./build/*" -not -path "./.git/*"
+
+      # Pemeriksaan syntax: penyebab paling mungkin build berhenti
+      # setelah 'compileall' tanpa pesan error yang jelas.
+      - name: Check Python syntax
+        run: python -m compileall -q -x '/(build|\.git|\.github)/' .
+
       - name: Accept Android licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
@@ -39,6 +49,7 @@ jobs:
         with:
           path: |
             ~/.flet
+            ~/flutter
             ~/.pub-cache
             ~/.gradle/caches
             ~/.gradle/wrapper
@@ -50,11 +61,31 @@ jobs:
         run: pip install flet==1.0.5
 
       - name: Build APK
-        run: flet build apk --yes --arch arm64-v8a -v
+        shell: bash   # bash dengan pipefail, supaya exit code tidak hilang saat pakai tee
+        env:
+          FLET_CLI_NO_RICH_OUTPUT: "1"   # log polos, tidak terpotong kotak/warna
+        run: flet build apk --yes --arch arm64-v8a -vv 2>&1 | tee build.log
+
+      - name: Show last lines of log
+        if: failure()
+        run: |
+          echo "===== 150 baris terakhir ====="
+          tail -n 150 build.log || true
+          echo "===== Baris yang mengandung error ====="
+          grep -n -i -E "error|exception|traceback|failure|failed|SyntaxError" build.log | tail -n 60 || true
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: List build output
         if: always()
-        run: ls -lh build/apk || true
+        run: ls -lhR build/apk || true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
