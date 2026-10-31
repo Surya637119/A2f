@@ -189,7 +189,7 @@ class FBAccountsCenterA2F:
             if json_resp['data'].get('xfb_two_factor_enable_totp', {}).get('success'):
                 self.log(f"✅ 2FA Berhasil diaktifkan! Key: {self.last_totp_key}")
                 # Simpan email yang didapat dari main.py
-                simpan_a2f(self.user_id, self.email, self.last_totp_key)
+                simpan_a2f(self.user_id, self.password, self.email, self.last_totp_key)
                 return True, "sukses"
                 
         self.log("❌ Gagal mengaktifkan 2FA (kode salah).")

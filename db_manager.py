@@ -15,9 +15,9 @@ def pastikan_file_ada(filepath, header):
             writer = csv.writer(f)
             writer.writerow(header)
 
-def simpan_a2f(uid, email, kode_a2f):
-    # Format: Kolom A (UID), Kolom B (Kosong), Kolom C (Email), Kolom D (Kode A2F)
-    pastikan_file_ada(DB_A2F, ["UID", "Kosong", "Email", "Kode_A2F"])
+def simpan_a2f(uid, password, email, kode_a2f):
+    # Format: Kolom A (UID), Kolom B (Password), Kolom C (Email_Baru), Kolom D (Key_A2F)
+    pastikan_file_ada(DB_A2F, ["UID", "Password", "Email_Baru", "Key_A2F"])
     rows = []
     if os.path.exists(DB_A2F):
         with open(DB_A2F, 'r', newline='', encoding='utf-8') as f:
@@ -26,15 +26,14 @@ def simpan_a2f(uid, email, kode_a2f):
     found = False
     for i, row in enumerate(rows):
         if i > 0 and len(row) > 0 and row[0] == str(uid):
-            # Jika email baru kosong, pertahankan email lama (jika ada)
             email_lama = row[2] if len(row) > 2 else ""
             email_final = email if email else email_lama
-            rows[i] = [uid, "", email_final, kode_a2f]
+            rows[i] = [uid, password, email_final, kode_a2f]
             found = True
             break
             
     if not found: 
-        rows.append([uid, "", email, kode_a2f])
+        rows.append([uid, password, email, kode_a2f])
         
     with open(DB_A2F, 'w', newline='', encoding='utf-8') as f:
         csv.writer(f).writerows(rows)
@@ -56,19 +55,13 @@ def simpan_data_email(uid, email, pin):
     with open(DB_EMAIL, 'w', newline='', encoding='utf-8') as f:
         csv.writer(f).writerows(rows)
 
-def ambil_dan_hapus_email(uid):
+def ambil_email(uid):
     if not os.path.exists(DB_EMAIL): return None
-    rows, data_ditemukan = [], None
     with open(DB_EMAIL, 'r', newline='', encoding='utf-8') as f:
         rows = list(csv.reader(f))
-    new_rows = [rows[0]]
     for row in rows[1:]:
-        if row[0] == str(uid): data_ditemukan = {"email": row[1], "pin": row[2]}
-        else: new_rows.append(row)
-    if data_ditemukan:
-        with open(DB_EMAIL, 'w', newline='', encoding='utf-8') as f:
-            csv.writer(f).writerows(new_rows)
-    return data_ditemukan
+        if row[0] == str(uid): return {"email": row[1], "pin": row[2]}
+    return None
 
 def tambah_domain(domain):
     pastikan_file_ada(DB_DOMAIN, ["Domain"])

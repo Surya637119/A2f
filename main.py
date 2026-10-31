@@ -9,8 +9,8 @@ from datetime import datetime
 
 from db_manager import (
     get_semua_domain, tambah_domain, simpan_data_email, 
-    ambil_dan_hapus_email, get_semua_folder_foto, get_foto_di_folder, get_path_foto,
-    DB_A2F
+    ambil_email, get_semua_folder_foto, get_foto_di_folder, get_path_foto,
+    DB_A2F, simpan_a2f
 )
 from fb_a2f import FBAccountsCenterA2F
 from fb_foto import FacebookProfileUploader
@@ -279,10 +279,81 @@ def main(page: ft.Page):
     ])
 
     # ==========================================
+    # TAB 6: DATABASE
+    # ==========================================
+    db_view = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+    
+    def load_db_folder(db_type):
+        db_view.controls.clear()
+        
+        if db_type == "A2F":
+            filepath = DB_A2F
+            headers = ["UID", "Password", "Email_Baru", "Key_A2F"]
+        elif db_type == "Email":
+            from db_manager import DB_EMAIL
+            filepath = DB_EMAIL
+            headers = ["UID", "Email", "PIN"]
+        elif db_type == "Domain":
+            from db_manager import DB_DOMAIN
+            filepath = DB_DOMAIN
+            headers = ["Domain"]
+        else:
+            return
+        
+        db_view.controls.append(ft.Text(f"Database: {db_type}", weight=ft.FontWeight.BOLD, size=18))
+        db_view.controls.append(ft.ElevatedButton("← Kembali", on_click=lambda e: load_db_menu()))
+        
+        if not os.path.exists(filepath):
+            db_view.controls.append(ft.Text("Database kosong", color=ft.Colors.GREY))
+            page.update()
+            return
+        
+        with open(filepath, 'r', newline='', encoding='utf-8') as f:
+            rows = list(csv.reader(f))
+        
+        if len(rows) <= 1:
+            db_view.controls.append(ft.Text("Tidak ada data", color=ft.Colors.GREY))
+            page.update()
+            return
+        
+        for idx, row in enumerate(rows[1:], start=1):
+            def make_delete(row_idx, row_data):
+                def delete_row(e):
+                    with open(filepath, 'r', newline='', encoding='utf-8') as f:
+                        all_rows = list(csv.reader(f))
+                    del all_rows[row_idx]
+                    with open(filepath, 'w', newline='', encoding='utf-8') as f:
+                        csv.writer(f).writerows(all_rows)
+                    load_db_folder(db_type)
+                return delete_row
+            
+            row_text = " | ".join(row)
+            db_view.controls.append(
+                ft.Row([
+                    ft.Text(row_text, expand=True),
+                    ft.IconButton(icon=ft.icons.DELETE, on_click=make_delete(idx, row), icon_color=ft.Colors.RED)
+                ])
+            )
+        
+        page.update()
+    
+    def load_db_menu():
+        db_view.controls.clear()
+        db_view.controls.append(ft.Text("Database", weight=ft.FontWeight.BOLD, size=18))
+        db_view.controls.append(ft.ElevatedButton("📁 A2F", on_click=lambda e: load_db_folder("A2F")))
+        db_view.controls.append(ft.ElevatedButton("📁 Email", on_click=lambda e: load_db_folder("Email")))
+        db_view.controls.append(ft.ElevatedButton("📁 Domain", on_click=lambda e: load_db_folder("Domain")))
+        page.update()
+    
+    load_db_menu()
+    
+    tab6_content = ft.Column([db_view], expand=True, scroll=ft.ScrollMode.AUTO)
+
+    # ==========================================
     # SUSUNAN TAB
     # ==========================================
     tabs = ft.Tabs(
-        selected_index=0, length=5, animation_duration=300, expand=1,
+        selected_index=0, length=6, animation_duration=300, expand=1,
         content=ft.Column(
             expand=True,
             controls=[
@@ -290,12 +361,12 @@ def main(page: ft.Page):
                     tabs=[
                         ft.Tab(label="Auto Set"), ft.Tab(label="Trigger"),
                         ft.Tab(label="Set Email"), ft.Tab(label="Set Domain"),
-                        ft.Tab(label="Dashboard")
+                        ft.Tab(label="Dashboard"), ft.Tab(label="Database")
                     ]
                 ),
                 ft.TabBarView(
                     expand=True,
-                    controls=[tab1_content, tab2_content, tab3_content, tab4_content, tab5_content]
+                    controls=[tab1_content, tab2_content, tab3_content, tab4_content, tab5_content, tab6_content]
                 )
             ]
         )
@@ -348,23 +419,29 @@ def main(page: ft.Page):
         ui_status = tugas['_ui_status']
         
         # Timer
+        jam_mulai = datetime.fromtimestamp(tugas['waktu_mulai']).strftime('%H:%M:%S')
         while time.time() < tugas['waktu_mulai']:
             # Cek jika di-stop
             if task_key in daftar_stop or tugas not in antrean_tugas:
                 tugas['status'] = 'Stopped'
                 page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan", color=ft.Colors.GREY)
                 return
-            selisih = int(tugas['waktu_mulai'] - time.time())
-            page_ref.run_task(_update_ui, ui_status, value=f"Status: Waiting ({selisih} detik lagi)", color=ft.Colors.ORANGE)
+            page_ref.run_task(_update_ui, ui_status, value=f"Status: Waiting (Mulai: {jam_mulai})", color=ft.Colors.ORANGE)
             time.sleep(1)
         
         page_ref.run_task(_update_ui, ui_status, value="Status: Processing...", color=ft.Colors.BLUE)
         log_tb1(f"\n▶️ Memulai proses UID: {uid}")
 
         gagal_checkpoint = False
-        data_email_db = ambil_dan_hapus_email(uid) 
+        data_email_db = ambil_email(uid) 
         email_target = data_email_db['email'] if data_email_db else ""
         pin_target = data_email_db['pin'] if data_email_db else ""
+        
+        if not data_email_db:
+            log_tb1(f"⚠️ [{uid}] Data email tidak ditemukan di database. Task dilewati.")
+            tugas['status'] = 'Skipped'
+            page_ref.run_task(_update_ui, ui_status, value="Status: Skipped (No Email Data)", color=ft.Colors.ORANGE)
+            return
 
         for prog in tugas['program']:
             if task_key in daftar_stop or tugas not in antrean_tugas:
