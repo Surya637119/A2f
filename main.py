@@ -5,6 +5,7 @@ import os
 import re
 import random
 import json
+import csv
 from datetime import datetime
 
 from db_manager import (
@@ -317,7 +318,7 @@ def main(page: ft.Page):
             return
         
         for idx, row in enumerate(rows[1:], start=1):
-            def make_delete(row_idx, row_data):
+            def make_delete(row_idx):
                 def delete_row(e):
                     with open(filepath, 'r', newline='', encoding='utf-8') as f:
                         all_rows = list(csv.reader(f))
@@ -331,7 +332,7 @@ def main(page: ft.Page):
             db_view.controls.append(
                 ft.Row([
                     ft.Text(row_text, expand=True),
-                    ft.IconButton(icon=ft.icons.DELETE, on_click=make_delete(idx, row), icon_color=ft.Colors.RED)
+                    ft.IconButton(icon=ft.icons.DELETE, on_click=make_delete(idx), icon_color=ft.Colors.RED)
                 ])
             )
         
