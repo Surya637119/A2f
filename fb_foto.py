@@ -79,6 +79,41 @@ class FacebookProfileUploader:
         
         return tokens
 
+    def _build_upload_params(self):
+        params = {
+            'photo_source': '57',
+            'profile_id': self.uid,
+            'av': self.uid,
+            '__aaid': '0',
+            '__user': self.uid,
+            '__a': '1',
+            '__req': '1n',
+            **self.STATIC_PARAMS
+        }
+        
+        if '__hs' in self.tokens:
+            params['__hs'] = self.tokens['__hs']
+        if '__rev' in self.tokens:
+            params['__rev'] = self.tokens['__rev']
+        if '__hsi' in self.tokens:
+            params['__hsi'] = self.tokens['__hsi']
+        if 'fb_dtsg' in self.tokens:
+            params['fb_dtsg'] = self.tokens['fb_dtsg']
+        if 'jazoest' in self.tokens:
+            params['jazoest'] = self.tokens['jazoest']
+        if 'lsd' in self.tokens:
+            params['lsd'] = self.tokens['lsd']
+        if '__spin_r' in self.tokens:
+            params['__spin_r'] = self.tokens['__spin_r']
+        if '__spin_t' in self.tokens:
+            params['__spin_t'] = self.tokens['__spin_t']
+        elif '__rev' in self.tokens:
+            params['__spin_t'] = self.tokens['__rev']
+        if '__spin_b' in self.tokens:
+            params['__spin_b'] = self.tokens['__spin_b']
+        
+        return params
+
     def _get_initial_tokens(self):
         for ua_index, user_agent in enumerate(self.USER_AGENTS, 1):
             self.log(f"    Trying UA #{ua_index}...")
@@ -112,34 +147,53 @@ class FacebookProfileUploader:
         return False
 
     def _upload_photo(self):
-        if not os.path.exists(self.photo_path): return None
+        if not os.path.exists(self.photo_path): 
+            self.log(f"❌ File foto tidak ditemukan: {self.photo_path}")
+            return None
         boundary = "----WebKitFormBoundary" + "".join([chr(i) for i in range(97, 123)][:16])
         
         with open(self.photo_path, 'rb') as f:
             file_content = f.read()
-            
-        body_header = f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{os.path.basename(self.photo_path)}"\r\nContent-Type: image/jpeg\r\n\r\n'.encode()
-        body_footer = f'\r\n--{boundary}--\r\n'.encode()
         
-        params = {'photo_source': '57', 'profile_id': self.uid, 'av': self.uid, '__aaid': '0', '__user': self.uid, '__a': '1', '__req': '1n', **self.STATIC_PARAMS}
-        params.update({k: v for k, v in self.tokens.items() if k in ['__hs', '__rev', '__hsi', 'fb_dtsg', 'jazoest', 'lsd', '__spin_r', '__spin_t', '__spin_b']})
+        body_lines = [
+            f"--{boundary}",
+            f'Content-Disposition: form-data; name="file"; filename="{os.path.basename(self.photo_path)}"',
+            "Content-Type: image/jpeg",
+            "",
+        ]
         
+        body_header = '\r\n'.join(body_lines) + '\r\n'
+        body_footer = f'\r\n--{boundary}--\r\n'
+        
+        params = self._build_upload_params()
+        
+        multipart_body = body_header.encode() + file_content + body_footer.encode()
         headers = {
             'authority': 'web.facebook.com',
             'accept': '*/*',
             'accept-language': 'en-US,en;q=0.9',
             'origin': 'https://web.facebook.com',
             'referer': f'https://web.facebook.com/profile.php?id={self.uid}',
-            'user-agent': self.USER_AGENTS[2], # UA Windows (indeks 2)
+            'user-agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36',
             'content-type': f'multipart/form-data; boundary={boundary}',
+            'content-length': str(len(multipart_body)),
             'x-asbd-id': '359341',
         }
-        if 'lsd' in self.tokens: headers['x-fb-lsd'] = self.tokens['lsd']
         
-        resp = self.session.post('https://web.facebook.com/profile/picture/upload/', params=params, data=body_header + file_content + body_footer, headers=headers)
+        resp = self.session.post('https://web.facebook.com/profile/picture/upload/', params=params, data=multipart_body, headers=headers)
+        self.log(f"    Upload response status: {resp.status_code}")
         txt = resp.text[9:] if resp.text.startswith('for (;;);') else resp.text
-        try: return json.loads(txt).get('payload', {}).get('fbid')
-        except: return None
+        try: 
+            data = json.loads(txt)
+            self.log(f"    Upload response: {txt[:200]}")
+            fbid = data.get('payload', {}).get('fbid')
+            if fbid:
+                self.log(f"    FBID obtained: {fbid}")
+            return fbid
+        except Exception as e:
+            self.log(f"    Parse error: {e}")
+            self.log(f"    Raw response: {txt[:300]}")
+            return None
 
     def _set_profile_pic(self, fbid):
         variables = {
@@ -171,7 +225,7 @@ class FacebookProfileUploader:
             'content-type': 'application/x-www-form-urlencoded',
             'origin': 'https://web.facebook.com',
             'referer': f'https://web.facebook.com/profile.php?id={self.uid}&_rdc=1&_rdr',
-            'user-agent': self.USER_AGENTS[2], 
+'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'x-asbd-id': '359341',
         }
         if 'lsd' in self.tokens: headers['x-fb-lsd'] = self.tokens['lsd']
@@ -179,8 +233,17 @@ class FacebookProfileUploader:
         resp = self.session.post('https://web.facebook.com/api/graphql/', data=data, headers=headers)
         txt = resp.text[9:] if resp.text.startswith('for (;;);') else resp.text
         try:
-            return 'profile_picture_set' in json.loads(txt).get('data', {})
-        except: return False
+            decoder = json.JSONDecoder()
+            json_data, idx = decoder.raw_decode(txt)
+            if 'data' in json_data and json_data['data']:
+                if 'profile_picture_set' in json_data['data']:
+                    self.log("✅ Foto profil berhasil diset!")
+                    return True
+            self.log(f"    Response tidak ada profile_picture_set")
+            return False
+        except Exception as e:
+            self.log(f"    Parse error: {e}")
+            return False
 
     def run_upload(self):
         self.log(f"⏳ Mengambil token Facebook...")
