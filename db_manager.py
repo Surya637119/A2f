@@ -83,24 +83,16 @@ def get_semua_domain():
         return [row[0] for row in rows[1:] if len(row) > 0]
 
 def get_semua_folder_foto():
-    path_assets = os.path.join(ASSETS_DIR, "assets")
-    if not os.path.exists(path_assets):
-        path_assets = ASSETS_DIR
-    if not os.path.exists(path_assets): return []
-    return [d for d in os.listdir(path_assets) if os.path.isdir(os.path.join(path_assets, d))]
+     if not os.path.exists(ASSETS_DIR): return []
+     return [d for d in os.listdir(ASSETS_DIR) if os.path.isdir(os.path.join(ASSETS_DIR, d))]
 
 def get_foto_di_folder(nama_folder):
-    path = os.path.join(ASSETS_DIR, "assets", nama_folder)
-    if not os.path.exists(path):
-        path = os.path.join(ASSETS_DIR, nama_folder)
-    if not os.path.exists(path): return []
-    return [f for f in os.listdir(path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+     path = os.path.join(ASSETS_DIR, nama_folder)
+     if not os.path.exists(path): return []
+     return [f for f in os.listdir(path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
 
 def get_path_foto(nama_folder, nama_file):
-    path = os.path.join(ASSETS_DIR, "assets", nama_folder, nama_file)
-    if not os.path.exists(path):
-        path = os.path.join(ASSETS_DIR, nama_folder, nama_file)
-    return path
+     return os.path.join(ASSETS_DIR, nama_folder, nama_file)
 
 # Fungsi bantu untuk Share Database
 def get_path_db_a2f():

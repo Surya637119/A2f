@@ -123,8 +123,13 @@ def main(page: ft.Page):
                 uid_match = re.search(r'c_user=(\d+)', c)
                 uid = uid_match.group(1) if uid_match else "Unknown"
                 
+                xs_match = re.search(r'xs=([^;]+)', c)
+                xs = xs_match.group(1) if xs_match else "unknown"
+                task_key = f"{uid}_{xs}"
+                
                 tugas = {
                     "uid": uid, "cookie": c.strip(), "password": tb1_password.value,
+                    "task_key": task_key,
                     "program": progs, "folder_foto": tb1_dd_folder.value,
                     "domain": tb1_dd_domain.value, "waktu_mulai": waktu_mulai,
                     "delay_akun": d_akun, "delay_prog": d_prog, "status": "Waiting"
@@ -316,11 +321,11 @@ def main(page: ft.Page):
             page.update()
 
         def stop_item(e):
-            daftar_stop.add(uid)
-            teks_status.value = "Status: Stopping..."
-            # Simpan state agar status ini tidak muncul lagi saat aplikasi dibuka
-            simpan_state_antrean() 
-            page.update()
+             task_key = tugas['task_key']
+             daftar_stop.add(task_key)
+             teks_status.value = "Status: Stopping..."
+             simpan_state_antrean() 
+             page.update()
 
         kontainer_item = ft.Container(
             content=ft.Column([
@@ -339,12 +344,13 @@ def main(page: ft.Page):
 
     def jalankan_tugas(tugas, page_ref):
         uid, cookie = tugas['uid'], tugas['cookie']
+        task_key = tugas['task_key']
         ui_status = tugas['_ui_status']
         
         # Timer
         while time.time() < tugas['waktu_mulai']:
             # Cek jika di-stop
-            if uid in daftar_stop or tugas not in antrean_tugas:
+            if task_key in daftar_stop or tugas not in antrean_tugas:
                 tugas['status'] = 'Stopped'
                 page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan", color=ft.Colors.GREY)
                 return
@@ -361,7 +367,7 @@ def main(page: ft.Page):
         pin_target = data_email_db['pin'] if data_email_db else ""
 
         for prog in tugas['program']:
-            if uid in daftar_stop or tugas not in antrean_tugas:
+            if task_key in daftar_stop or tugas not in antrean_tugas:
                 page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan", color=ft.Colors.GREY)
                 log_tb1(f"⏹️ Proses UID {uid} dihentikan user.")
                 return
@@ -418,7 +424,7 @@ def main(page: ft.Page):
             tugas['status'] = 'Gagal'
             page_ref.run_task(_update_ui, ui_status, value="Status: Gagal / Checkpoint", color=ft.Colors.RED)
             log_tb1(f"⛔ Proses UID {uid} dihentikan (Checkpoint).")
-        elif uid in daftar_stop:
+        elif task_key in daftar_stop:
             tugas['status'] = 'Stopped'
             page_ref.run_task(_update_ui, ui_status, value="Status: Dihentikan", color=ft.Colors.GREY)
         else:
@@ -426,8 +432,7 @@ def main(page: ft.Page):
             page_ref.run_task(_update_ui, ui_status, value="Status: Sukses ✅", color=ft.Colors.GREEN)
             log_tb1(f"✅ Proses UID {uid} Selesai.")
         
-        daftar_stop.discard(uid)
-        # Simpan state terbaru (menghapus yang sudah sukses/gagal)
+        daftar_stop.discard(task_key)
         simpan_state_antrean()
 
     # ==========================================
