@@ -301,7 +301,7 @@ def main(page: ft.Page):
             return
         
         db_view.controls.append(ft.Text(f"Database: {db_type}", weight=ft.FontWeight.BOLD, size=18))
-        db_view.controls.append(ft.ElevatedButton("← Kembali", on_click=lambda e: load_db_menu()))
+        db_view.controls.append(ft.FilledButton("← Kembali", on_click=lambda e: load_db_menu()))
         
         if not os.path.exists(filepath):
             db_view.controls.append(ft.Text("Database kosong", color=ft.Colors.GREY))
@@ -340,9 +340,9 @@ def main(page: ft.Page):
     def load_db_menu():
         db_view.controls.clear()
         db_view.controls.append(ft.Text("Database", weight=ft.FontWeight.BOLD, size=18))
-        db_view.controls.append(ft.ElevatedButton("📁 A2F", on_click=lambda e: load_db_folder("A2F")))
-        db_view.controls.append(ft.ElevatedButton("📁 Email", on_click=lambda e: load_db_folder("Email")))
-        db_view.controls.append(ft.ElevatedButton("📁 Domain", on_click=lambda e: load_db_folder("Domain")))
+        db_view.controls.append(ft.FilledButton("📁 A2F", on_click=lambda e: load_db_folder("A2F")))
+        db_view.controls.append(ft.FilledButton("📁 Email", on_click=lambda e: load_db_folder("Email")))
+        db_view.controls.append(ft.FilledButton("📁 Domain", on_click=lambda e: load_db_folder("Domain")))
         page.update()
     
     load_db_menu()
